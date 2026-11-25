@@ -243,7 +243,7 @@ html[data-glass] .av,html[data-glass] .ring .av{box-shadow:0 4px 12px rgba(0,0,0
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Сервер: страница с сервера работает с ним же; APK берёт адрес ниже; без сервера включается демо.
-const API=(typeof window.__API__==='string')?window.__API__:((window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())?'https://CHANGE-ME.onrender.com':null);
+const API=(typeof window.__API__==='string')?window.__API__:((window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform())?'https://gribsvyaz.onrender.com':null);
 const ONLINE=API!==null;
 const KEY=ONLINE?'gribsvyaz:online:v1':'nasvyazi:v1';
 let S=null,AUTH={},REPLY=null,TYP={},DRAFT={},CUSTOM={url:null},TOK=null;
