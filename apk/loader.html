@@ -33,6 +33,8 @@ function ping(){
 }
 function retry(){
   if(done)return;
+  // уже заходили: не держим на заставке, открываем сохранённую копию
+  if(seen()&&Date.now()-t0>10000){go();return}
   if(Date.now()-t0>MAX){fail('Сервер не отвечает. Попробуйте ещё раз через минуту.');return}
   var sec=Math.round((Date.now()-t0)/1000);
   s.textContent=sec>6?'Сервер просыпается, это бывает до минуты…':'Просыпаем лес…';
