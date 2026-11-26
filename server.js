@@ -22,10 +22,10 @@ const useGist = () => !!(process.env.GH_TOKEN && process.env.GIST_ID);
 const ready = () => !useGist() || gistOK; // без базы любой вход выглядел бы как «неизвестный» и людей выкидывало бы
 // Данные хранятся в файле и, если заданы GH_TOKEN и GIST_ID, в приватном Gist (на бесплатном Render диск стирается).
 async function gistLoad() {
-      if (!f) throw new Error(j.message ? 'GitHub: ' + j.message : 'нет data.json, есть файлы: ' + Object.keys(j.files || {}).join(', '));
+  if (!GH_TOKEN || !GIST_ID) return;
   try {
     const j = await (await fetch(GH_API + '/gists/' + GIST_ID, { headers: ghH, signal: AbortSignal.timeout(15000) })).json(), f = j.files && j.files['data.json'];
-    if (!f) throw new Error('в Gist нет файла data.json');
+    if (!f) throw new Error(j.message ? 'GitHub: ' + j.message : 'нет data.json, есть файлы: ' + Object.keys(j.files || {}).join(', '));
     const t = f.truncated ? await (await fetch(f.raw_url, { headers: ghH })).text() : f.content;
     db = Object.assign(db, JSON.parse(t || '{}')); gistOK = true; console.log('Данные загружены из Gist');
   } catch (e) { console.error('Gist: не удалось загрузить данные: ' + e.message); }
