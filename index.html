@@ -266,6 +266,20 @@ html[data-glass] .side{background:transparent}
 html[data-glass] :is(.chead,.tabs,.comp,.rbar,.emo,.mini,.sms,.card,.sheet,.menu,.bio,.search,.day,.in .bub){background:color-mix(in srgb,var(--surface) 38%,transparent);-webkit-backdrop-filter:blur(30px) saturate(190%);backdrop-filter:blur(30px) saturate(190%);border-color:color-mix(in srgb,#fff 22%,transparent)}
 html[data-glass] .sheet{background:color-mix(in srgb,var(--surface) 55%,transparent)}
 html[data-glass] .msgs{background-image:none}
+.bub{cursor:pointer;overflow-wrap:anywhere;max-width:100%;min-width:0}
+.txt a{color:var(--accent);text-decoration:underline}
+.out .txt a{color:inherit}
+.fwd{display:block;font-size:13px;font-weight:650;color:var(--warm);margin-bottom:2px}
+.out .fwd{color:#fff;opacity:.85}
+.quote{cursor:pointer}
+.msg{touch-action:pan-y;transition:transform .18s}
+.msg.flash .bub{animation:flash 1.4s}
+@keyframes flash{30%{box-shadow:0 0 0 4px var(--warm)}}
+.mwrap{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+.down{position:absolute;right:14px;bottom:8px;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:1px solid var(--hair);box-shadow:var(--shadow);z-index:2}
+.down .ic{transform:rotate(-90deg)}
+.pin{width:15px;height:15px;color:var(--muted)}
+.r-last em.dr{color:var(--danger)}
 </style></head><body>
 <div id="root"></div>
 <div class="sms" id="sms" role="status" aria-live="polite"></div>
@@ -308,6 +322,8 @@ edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
 smile:'<circle cx="12" cy="12" r="9"/><path d="M8 14.5c1 1.6 2.4 2.3 4 2.3s3-.7 4-2.3"/><path d="M9 9.5h.01M15 9.5h.01"/>',
 drop:'<path d="M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z"/>',
 glass:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16v4M17 18h4"/>',
+pin:'<path d="M9 3h6l-1 6 4 4H6l4-4z"/><path d="M12 13v8"/>',
+forward:'<path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 00-6 6v3"/>',
 phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a1 1 0 01-1 1A15 15 0 014 5a1 1 0 011-1z"/>'};
 const ic=(n,cls)=>'<svg class="ic '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true">'+P[n]+'</svg>';
 const logo=(s)=>'<svg width="'+(s||30)+'" height="'+(s||30)+'" viewBox="0 0 32 32" aria-hidden="true"><path d="M11.5 17h9l-.8 7.2a3.2 3.2 0 01-6.4 0z" fill="#F3EAD6"/><path d="M2.5 18C2.5 9 8.4 3 16 3s13.5 6 13.5 15c0 1-2.5 1.6-13.5 1.6S2.5 19 2.5 18z" fill="#F23D57"/><path d="M5 18.3c3.6 1 7.6 1.4 11 1.4s7.4-.4 11-1.4c.6-.2 1 .3.5.7-1.4 1.4-6.7 1.6-11.5 1.6S5.9 20.4 4.5 19c-.5-.4-.1-.9.5-.7z" fill="#B21636" opacity=".55"/><circle cx="10" cy="11.5" r="2.3" fill="#fff"/><circle cx="18.5" cy="8.3" r="1.9" fill="#fff"/><circle cx="23.2" cy="13.6" r="1.7" fill="#fff"/><circle cx="15" cy="15" r="1.2" fill="#fff"/></svg>';
@@ -444,7 +460,7 @@ function mapMe(u,old){
   if(!tr&&old&&old.track&&old.track.key==='custom')tr=old.track;
   return{id:u.id,name:u.name,username:u.username||'',phone:fmtMe(u.phone),bio:u.bio||'',track:tr};
 }
-const mapMsg=m=>({id:m.id,from:m.from===S.me.id?'me':m.from,text:m.text,ts:m.ts,status:m.status,reply:m.reply||null,react:m.react||null});
+const mapMsg=m=>({id:m.id,edited:m.edited||0,fwd:m.fwd||null,from:m.from===S.me.id?'me':m.from,text:m.text,ts:m.ts,status:m.status,reply:m.reply||null,react:m.react||null});
 function emptyState(me){return{tok:TOK,me:me,contacts:[],chats:{},unread:{},tab:'chats',open:null,theme:'system'}}
 function recountUnread(){
   S.unread={};
@@ -473,7 +489,7 @@ function markRead(id){
 function forceLogout(){
   stopAll();if(ES){ES.close();ES=null}
   try{localStorage.removeItem(KEY)}catch(x){}
-  S=null;TOK=null;TYP={};DRAFT={};REPLY=null;applyTheme();renderAuth('phone');toast('Нужно войти заново');
+  S=null;TOK=null;TYP={};DRAFT={};REPLY=null;EDIT=null;applyTheme();renderAuth('phone');toast('Нужно войти заново');
 }
 let FLUSHING=false;
 async function flushQueue(){
@@ -486,8 +502,8 @@ async function flushQueue(){
     const cid=om.id;
     if(!(me.chats[to]||[]).some(m=>m.id===cid))continue; // удалили, пока ждало в очереди
     try{
-      const r=await api('/api/send','POST',{to,text:om.text,reply:om.reply,cid});
-      om.id=r.msg.id;om.ts=r.msg.ts;if(om.status==='sending')om.status=r.msg.status;
+      const r=await api('/api/send','POST',{to,text:om.text,reply:om.reply,fwd:om.fwdId,cid});
+      om.id=r.msg.id;om.ts=r.msg.ts;om.fwd=r.msg.fwd||null;if(om.status==='sending')om.status=r.msg.status;
       // пока шёл запрос, sync мог пересобрать чат: обновляем и новую копию
       if(S===me)(S.chats[to]||[]).forEach(m=>{if(m.id===cid)Object.assign(m,om)});
     }catch(e){
@@ -539,10 +555,12 @@ function onEvent(ev){
     save();refresh();if(S.open===peer)renderMsgs(true);
   }else if(ev.type==='read'){
     (S.chats[ev.by]||[]).forEach(m=>{if(ev.ids.includes(m.id))m.status='read'});save();refresh();
+  }else if(ev.type==='edit'){
+    const m=findMsg(ev.id);if(m){m.text=ev.text;m.edited=ev.edited;save();refresh();renderReply()}
   }else if(ev.type==='react'){
     const m=findMsg(ev.id);if(m){m.react=ev.emoji||null;save();refresh()}
   }else if(ev.type==='delete'){
-    for(const k in S.chats){const i=S.chats[k].findIndex(x=>x.id===ev.id);if(i>=0)S.chats[k].splice(i,1)}save();refresh();
+    for(const k in S.chats){const i=S.chats[k].findIndex(x=>x.id===ev.id);if(i>=0)S.chats[k].splice(i,1)}if(EDIT===ev.id)stopEdit();save();refresh();
   }else if(ev.type==='typing'){
     if(Date.now()-(LASTIN[ev.from]||0)<2000)return;
     TYP[ev.from]=true;clearTimeout(TYPT[ev.from]);TYPT[ev.from]=setTimeout(()=>{TYP[ev.from]=false;refresh()},4000);refresh();if(S.open===ev.from)renderMsgs(true);
@@ -656,10 +674,11 @@ function rowHtml(c,mode){
   let last,time='';
   if(mode==='contact'){last=esc(statusText(c))}
   else{
-    last=TYP[c.id]?'<em>печатает…</em>':(m?(m.from==='me'?'<em>Вы:</em> ':'')+esc(m.text):'Нет сообщений');
+    const dr=S.open!==c.id&&(DRAFT[c.id]||'').trim();
+    last=TYP[c.id]?'<em>печатает…</em>':dr?'<em class="dr">Черновик:</em> '+esc(dr):(m?(m.from==='me'?'<em>Вы:</em> ':'')+esc(m.text):'Нет сообщений');
     time=m?listTime(m.ts):'';
   }
-  return '<button class="row'+(S.open===c.id?' sel':'')+'" data-act="open" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id)+(c.online?'<i class="dot"></i>':'')+'</span><span class="r-body"><span class="r-top"><b>'+esc(c.name)+'</b>'+(time?'<time>'+time+'</time>':'')+'</span><span class="r-bot"><span class="r-last">'+last+'</span>'+(u&&mode!=='contact'?'<span class="badge">'+u+'</span>':'')+'</span></span></button>';
+  return '<button class="row'+(S.open===c.id?' sel':'')+'" data-act="open" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id)+(c.online?'<i class="dot"></i>':'')+'</span><span class="r-body"><span class="r-top"><b>'+esc(c.name)+'</b>'+(mode!=='contact'&&isPinned(c.id)?ic('pin','pin'):'')+(time?'<time>'+time+'</time>':'')+'</span><span class="r-bot"><span class="r-last">'+last+'</span>'+(u&&mode!=='contact'?'<span class="badge">'+u+'</span>':'')+'</span></span></button>';
 }
 function nowHtml(){
   const a=S.contacts.filter(c=>c.track&&TRACKS[c.track]);
@@ -671,7 +690,7 @@ function listHtml(){
   const q=Q.trim().toLowerCase();
   let arr=S.contacts.filter(c=>!q||c.name.toLowerCase().includes(q));
   if(S.tab==='chats'){
-    arr=arr.filter(c=>(S.chats[c.id]||[]).length).sort((a,b)=>lastMsg(b.id).ts-lastMsg(a.id).ts);
+    arr=arr.filter(c=>(S.chats[c.id]||[]).length).sort((a,b)=>isPinned(b.id)-isPinned(a.id)||lastMsg(b.id).ts-lastMsg(a.id).ts);
     if(!arr.length)return '<div class="nochat">'+(q?'Ничего не найдено':(logo(54)+'<b>Здесь будут ваши чаты</b><span>Добавьте друга по номеру телефона или @имени</span><button class="btn" data-act="newc" style="width:auto;padding:12px 22px">Найти друга</button>'+(ONLINE?'<button class="btn ghost" data-act="invite" style="width:auto;padding:12px 22px">Пригласить в ГрибСвязь</button>':'')))+'</div>';
     return (q?'':nowHtml())+arr.map(c=>rowHtml(c,'chat')).join('');
   }
@@ -706,7 +725,7 @@ function renderMain(){
   const m=$('#main');
   if(!S.open){m.innerHTML='<div class="nochat">'+logo()+'<b>Выберите чат</b><span>или начните новый из контактов</span></div>';return}
   const c=cById(S.open);
-  m.innerHTML='<section class="chat"><header class="chead"><button class="ib back" data-act="back" aria-label="Назад">'+ic('back')+'</button><button class="who" data-act="cprofile" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id,'s')+'</span><span><b>'+esc(c.name)+'</b><small id="cstat"></small></span></button></header><div class="msgs" id="msgs"></div><div class="rbar" id="rbar" hidden></div><div class="emo" id="emo" hidden>'+EMO.map(e=>'<button type="button" data-act="addemo" data-e="'+e+'">'+e+'</button>').join('')+'</div><form class="comp" id="comp"><button type="button" class="ib" data-act="emo" aria-label="Смайлики">'+ic('smile')+'</button><textarea id="inp" rows="1" placeholder="Сообщение" aria-label="Сообщение"></textarea><button class="send" id="sendb" aria-label="Отправить" disabled>'+ic('send')+'</button></form></section>';
+  m.innerHTML='<section class="chat"><header class="chead"><button class="ib back" data-act="back" aria-label="Назад">'+ic('back')+'</button><button class="who" data-act="cprofile" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id,'s')+'</span><span><b>'+esc(c.name)+'</b><small id="cstat"></small></span></button></header><div class="mwrap"><div class="msgs" id="msgs"></div><button type="button" class="down" id="down" data-act="down" aria-label="Вниз" hidden>'+ic('back')+'</button></div><div class="rbar" id="rbar" hidden></div><div class="emo" id="emo" hidden>'+EMO.map(e=>'<button type="button" data-act="addemo" data-e="'+e+'">'+e+'</button>').join('')+'</div><form class="comp" id="comp"><button type="button" class="ib" data-act="emo" aria-label="Смайлики">'+ic('smile')+'</button><textarea id="inp" rows="1" placeholder="Сообщение" aria-label="Сообщение"></textarea><button class="send" id="sendb" aria-label="Отправить" disabled>'+ic('send')+'</button></form></section>';
   const inp=$('#inp');inp.value=DRAFT[c.id]||'';growInp();$('#sendb').disabled=!inp.value.trim();
   renderHead();renderMsgs(true);renderReply();
   if(matchMedia('(pointer:fine)').matches)inp.focus();
@@ -717,12 +736,48 @@ function renderHead(){
   const s=$('#cstat');if(!s||!S.open)return;const c=cById(S.open);
   s.textContent=statusText(c);s.className=(TYP[c.id]||c.online)?'live':'';
 }
+const linkify=t=>String(t).split(/(https?:\/\/[^\s<>"']*[^\s<>"'.,:;!?)\]])/).map((p,i)=>i%2?'<a href="'+esc(p)+'" target="_blank" rel="noopener noreferrer">'+esc(p)+'</a>':esc(p)).join('');
+const isPinned=id=>!!(S.pins&&S.pins.includes(id));
+let EDIT=null;
+function setInp(v){const i=$('#inp');if(!i)return;i.value=v;growInp();$('#sendb').disabled=!v.trim()}
+function stopEdit(){if(!EDIT)return;EDIT=null;setInp(DRAFT[S.open]||'');renderReply()}
+function startEdit(id){const m=(S.chats[S.open]||[]).find(x=>x.id===id);if(!m)return;EDIT=id;REPLY=null;setInp(m.text);renderReply();const i=$('#inp');if(i)i.focus()}
+async function saveEdit(){
+  const t=$('#inp').value.trim(),m=(S.chats[S.open]||[]).find(x=>x.id===EDIT);
+  if(!t)return;
+  if(!m||m.text===t){stopEdit();return}
+  const id=m.id,old={text:m.text,edited:m.edited||0};
+  m.text=t;m.edited=Date.now();stopEdit();save();renderMsgs();renderList();
+  if(ONLINE)try{await api('/api/edit','POST',{id,text:t})}catch(e){const x=S&&findMsg(id);if(x){Object.assign(x,old);save();refresh()}toast('Не удалось изменить сообщение')}
+}
+function forwardSheet(id){
+  sheet('<h3>Переслать кому</h3>'+(S.contacts.map(c=>'<button class="row" data-act="fwd-to" data-id="'+esc(c.id)+'" data-msg="'+esc(id)+'">'+avatar(c.name,c.id,'s')+'<b>'+esc(c.name)+'</b></button>').join('')));
+}
+function forwardTo(to,id){
+  const src=findMsg(id);if(!src){closeSheet();return}
+  const from=cById(S.open),name=src.fwd||(src.from==='me'?S.me.name:(from?from.name:'Без имени'));
+  const m={id:(ONLINE?'t':'')+uid(),from:'me',text:src.text,ts:Date.now(),status:ONLINE?'sending':'sent',reply:null,fwd:name,fwdId:id};
+  (S.chats[to]=S.chats[to]||[]).push(m);closeSheet();save();openChat(to);flushQueue();
+}
+function jumpTo(id){
+  const e=[...document.querySelectorAll('#msgs .msg[data-mid]')].find(x=>x.dataset.mid===id);if(!e)return;
+  e.scrollIntoView({block:'center',behavior:'smooth'});e.classList.remove('flash');void e.offsetWidth;e.classList.add('flash');
+}
+function updDown(){const e=$('#msgs'),d=$('#down');if(e&&d)d.hidden=e.scrollHeight-e.scrollTop-e.clientHeight<200}
+document.addEventListener('scroll',e=>{if(e.target.id==='msgs')updDown()},true);
+// свайп сообщения влево — ответить, как в Telegram
+let SW=null;
+const swEnd=ok=>{if(!SW)return;const w=SW;SW=null;w.el.style.transform='';if(ok&&w.dx<=-55&&S){stopEdit();REPLY=w.el.dataset.mid;renderReply();try{navigator.vibrate&&navigator.vibrate(12)}catch(x){}}};
+document.addEventListener('touchstart',e=>{const el=e.target.closest&&e.target.closest('.msg[data-mid]');SW=el&&e.touches.length===1?{el,x:e.touches[0].clientX,y:e.touches[0].clientY,dx:0,on:false}:null},{passive:true});
+document.addEventListener('touchmove',e=>{if(!SW)return;const dx=e.touches[0].clientX-SW.x,dy=e.touches[0].clientY-SW.y;if(!SW.on){if(Math.abs(dy)>10){SW=null;return}if(dx>-12)return;SW.on=true}SW.dx=dx;SW.el.style.transform='translateX('+Math.max(-80,Math.min(0,dx))+'px)'},{passive:true});
+document.addEventListener('touchend',()=>swEnd(true));
+document.addEventListener('touchcancel',()=>swEnd(false));
 function msgHtml(m,c,g){
   const out=m.from==='me';
   let q='';
-  if(m.reply){const r=(S.chats[c.id]||[]).find(x=>x.id===m.reply);if(r)q='<div class="quote"><b>'+esc(r.from==='me'?'Вы':c.name)+'</b><span>'+esc(r.text)+'</span></div>'}
+  if(m.reply){const r=(S.chats[c.id]||[]).find(x=>x.id===m.reply);if(r)q='<div class="quote" data-act="jump" data-id="'+esc(r.id)+'"><b>'+esc(r.from==='me'?'Вы':c.name)+'</b><span>'+esc(r.text)+'</span></div>'}
   const tick=out?(m.status==='read'?ic('checks'):m.status==='sending'?'<span title="Отправится, когда появится связь">🕓</span>':m.status==='failed'?'<b style="color:#ffd0d0">!</b>':ic('check')):'';
-  return '<div class="msg '+(out?'out':'in')+(g?' g':'')+'"><button class="bub'+(m.id===NEWID?' new':'')+'" data-act="msg" data-id="'+m.id+'">'+q+'<span class="txt">'+esc(m.text)+'</span><span class="meta">'+fmtT(m.ts)+tick+'</span></button>'+(m.react?'<span class="react">'+esc(m.react)+'</span>':'')+'</div>';
+  return '<div class="msg '+(out?'out':'in')+(g?' g':'')+'" data-mid="'+esc(m.id)+'"><div role="button" tabindex="0" class="bub'+(m.id===NEWID?' new':'')+'" data-act="msg" data-id="'+m.id+'">'+(m.fwd?'<span class="fwd">Переслано от '+esc(m.fwd)+'</span>':'')+q+'<span class="txt">'+linkify(m.text)+'</span><span class="meta">'+(m.edited?'изменено ':'')+fmtT(m.ts)+tick+'</span></div>'+(m.react?'<span class="react">'+esc(m.react)+'</span>':'')+'</div>';
 }
 function renderMsgs(stick){
   const el=$('#msgs');if(!el||!S.open)return;const c=cById(S.open);
@@ -732,18 +787,19 @@ function renderMsgs(stick){
   if(TYP[c.id])h+='<div class="msg in typing"><span class="bub"><i></i><i></i><i></i></span></div>';
   el.innerHTML=h||'<div class="nochat">Напишите первое сообщение 👋</div>';
   if(stick||near)el.scrollTop=el.scrollHeight;
+  updDown();
 }
 function renderReply(){
   const b=$('#rbar');if(!b)return;
-  const m=REPLY&&(S.chats[S.open]||[]).find(x=>x.id===REPLY);
+  const rid=EDIT||REPLY,m=rid&&(S.chats[S.open]||[]).find(x=>x.id===rid);
   if(!m){b.hidden=true;b.innerHTML='';return}
   const c=cById(S.open);
   b.hidden=false;
-  b.innerHTML='<div class="t"><b>'+esc(m.from==='me'?'Вы':c.name)+'</b><span>'+esc(m.text)+'</span></div><button class="ib" data-act="cancel-reply" aria-label="Отменить ответ">'+ic('x')+'</button>';
+  b.innerHTML='<div class="t"><b>'+esc(EDIT?'Редактирование':m.from==='me'?'Вы':c.name)+'</b><span>'+esc(m.text)+'</span></div><button class="ib" data-act="cancel-reply" aria-label="Отменить">'+ic('x')+'</button>';
 }
 const isTemp=id=>String(id)[0]==='t';
-function openChat(id){S.open=id;S.unread[id]=0;REPLY=null;if(ONLINE)markRead(id);save();renderMain();renderSide()}
-function closeChat(){S.open=null;REPLY=null;save();renderMain();renderSide()}
+function openChat(id){S.open=id;S.unread[id]=0;REPLY=null;EDIT=null;if(ONLINE)markRead(id);save();renderMain();renderSide()}
+function closeChat(){S.open=null;REPLY=null;EDIT=null;save();renderMain();renderSide()}
 function pickReply(c,t){
   const l=t.toLowerCase();
   if(/привет|здаров|хай|добр/.test(l))return c.hello||'Привет! 👋';
@@ -767,10 +823,11 @@ function botReply(id,t){
 function send(){
   const inp=$('#inp');if(!inp||!S.open)return;
   const t=inp.value.trim();if(!t)return;
+  if(EDIT){saveEdit();return}
   const id=S.open;
   if(ONLINE){
     const om={id:'t'+uid(),from:'me',text:t,ts:Date.now(),status:'sending',reply:REPLY&&!isTemp(REPLY)?REPLY:null};
-    (S.chats[id]=S.chats[id]||[]).push(om);NEWID=om.id;REPLY=null;DRAFT[id]='';inp.value='';growInp();
+    (S.chats[id]=S.chats[id]||[]).push(om);NEWID=om.id;REPLY=null;DRAFT[id]='';S.drafts=DRAFT;inp.value='';growInp();
     $('#sendb').disabled=true;renderReply();save();renderMsgs(true);renderList();
     flushQueue();
     return;
@@ -790,12 +847,12 @@ function sheet(html){
 function closeSheet(){const h=$('#sheets');if(!h)return;h.classList.remove('on');setTimeout(()=>{if(!h.classList.contains('on'))h.innerHTML=''},320)}
 function msgSheet(id){
   const m=(S.chats[S.open]||[]).find(x=>x.id===id);if(!m)return;
-  sheet('<div class="reacts">'+['❤️','👍','😂','😮','🙏'].map(e=>'<button data-act="react" data-id="'+id+'" data-e="'+e+'" aria-label="Реакция">'+e+'</button>').join('')+'</div><div class="menu"><button class="mrow" data-act="reply" data-id="'+id+'">'+ic('reply')+'<span>Ответить</span></button><button class="mrow" data-act="copy" data-id="'+id+'">'+ic('copy')+'<span>Копировать</span></button>'+(!ONLINE||m.from==='me'?'<button class="mrow danger" data-act="del" data-id="'+id+'">'+ic('trash')+'<span>Удалить</span></button>':'')+'</div>');
+  sheet('<div class="reacts">'+['❤️','👍','😂','😮','🙏'].map(e=>'<button data-act="react" data-id="'+id+'" data-e="'+e+'" aria-label="Реакция">'+e+'</button>').join('')+'</div><div class="menu"><button class="mrow" data-act="reply" data-id="'+id+'">'+ic('reply')+'<span>Ответить</span></button><button class="mrow" data-act="copy" data-id="'+id+'">'+ic('copy')+'<span>Копировать</span></button><button class="mrow" data-act="forward" data-id="'+id+'"'+(ONLINE&&isTemp(id)?' hidden':'')+'>'+ic('forward')+'<span>Переслать</span></button>'+(m.from==='me'&&!m.fwd&&!(ONLINE&&isTemp(id))?'<button class="mrow" data-act="edit-msg" data-id="'+id+'">'+ic('edit')+'<span>Изменить</span></button>':'')+(!ONLINE||m.from==='me'?'<button class="mrow danger" data-act="del" data-id="'+id+'">'+ic('trash')+'<span>Удалить</span></button>':'')+'</div>');
 }
 function cprofileSheet(id){
   const c=cById(id);if(!c)return;
   const tr=c.track?trkInfo(c.track):null;
-  sheet('<div class="hero">'+avatar(c.name,c.id,'xl')+'<h3>'+esc(c.name)+'</h3><div class="sub">'+esc(statusText(c))+'</div></div>'+(c.bio?'<div class="bio"><small>О себе</small>'+esc(c.bio)+'</div>':'')+(c.phone?'<div class="bio"><small>Телефон</small>'+esc(c.phone)+'</div>':'')+(c.username?'<div class="bio"><small>Имя пользователя</small>@'+esc(c.username)+'</div>':'')+(tr?'<div class="bio" style="background:none;padding:0"><small style="padding:0 2px 6px">Музыка в профиле</small>'+musicCard(tr,false)+'</div>':'')+'<button class="btn ghost" data-act="close">Закрыть</button>');
+  sheet('<div class="hero">'+avatar(c.name,c.id,'xl')+'<h3>'+esc(c.name)+'</h3><div class="sub">'+esc(statusText(c))+'</div></div>'+(c.bio?'<div class="bio"><small>О себе</small>'+esc(c.bio)+'</div>':'')+(c.phone?'<div class="bio"><small>Телефон</small>'+esc(c.phone)+'</div>':'')+(c.username?'<div class="bio"><small>Имя пользователя</small>@'+esc(c.username)+'</div>':'')+(tr?'<div class="bio" style="background:none;padding:0"><small style="padding:0 2px 6px">Музыка в профиле</small>'+musicCard(tr,false)+'</div>':'')+'<button class="btn ghost" data-act="pin" data-id="'+esc(c.id)+'">'+ic('pin')+(isPinned(c.id)?'Открепить чат':'Закрепить чат')+'</button><button class="btn ghost" data-act="close">Закрыть</button>');
 }
 function editSheet(){
   const m=S.me;
@@ -818,6 +875,7 @@ function addSheet(){
   sheet('<h3>Новый контакт</h3><form id="f-add" class="fld" style="gap:12px"><div class="fld"><label for="nn">Имя</label><input id="nn" class="inp" maxlength="40" placeholder="Как подписать"></div><div class="fld"><label for="np">Телефон</label><div class="phone"><b>+7</b><input id="np" type="tel" inputmode="tel" placeholder="(900) 123-45-67"></div></div><div class="err" id="aerr"></div><button class="btn">Добавить и написать</button></form>');
 }
 document.addEventListener('click',e=>{
+  if(e.target.closest('.txt a'))return;
   const t=e.target.closest('[data-act]');if(!t||!S)return;
   const a=t.dataset.act,id=t.dataset.id;
   switch(a){
@@ -833,19 +891,25 @@ document.addEventListener('click',e=>{
     case 'invite':{const link=API||location.origin,txt='Заходи в ГрибСвязь, пообщаемся: '+link;try{navigator.clipboard.writeText(txt).then(()=>toast('Приглашение скопировано, отправьте его другу'),()=>toast(link))}catch(x){toast(link)}break}
     case 'edit-prof':editSheet();break;
     case 'theme':S.theme=t.dataset.v;applyTheme();save();renderSide();break;
-    case 'logout':{if(ONLINE){api('/api/logout','POST',{}).catch(()=>{});if(ES){ES.close();ES=null}}stopAll();try{localStorage.removeItem(KEY)}catch(x){}S=null;TOK=null;TYP={};DRAFT={};REPLY=null;applyTheme();renderAuth('phone');break}
+    case 'logout':{if(ONLINE){api('/api/logout','POST',{}).catch(()=>{});if(ES){ES.close();ES=null}}stopAll();try{localStorage.removeItem(KEY)}catch(x){}S=null;TOK=null;TYP={};DRAFT={};REPLY=null;EDIT=null;applyTheme();renderAuth('phone');break}
     case 'newc':addSheet();break;
     case 'close':closeSheet();break;
     case 'msg':msgSheet(id);break;
     case 'react':{const m=(S.chats[S.open]||[]).find(x=>x.id===id);if(m){m.react=m.react===t.dataset.e?null:t.dataset.e;save();renderMsgs();if(ONLINE&&!isTemp(m.id))api('/api/react','POST',{id:m.id,emoji:m.react}).catch(()=>{})}closeSheet();break}
-    case 'reply':REPLY=id;closeSheet();renderReply();{const i=$('#inp');if(i&&matchMedia('(pointer:fine)').matches)i.focus()}break;
-    case 'cancel-reply':REPLY=null;renderReply();break;
+    case 'forward':forwardSheet(id);break;
+    case 'fwd-to':forwardTo(id,t.dataset.msg);break;
+    case 'edit-msg':closeSheet();startEdit(id);break;
+    case 'jump':jumpTo(id);break;
+    case 'down':{const e=$('#msgs');if(e)e.scrollTo({top:e.scrollHeight,behavior:'smooth'});break}
+    case 'pin':{const p=S.pins||[];S.pins=isPinned(id)?p.filter(x=>x!==id):p.concat(id);save();closeSheet();renderList();toast(isPinned(id)?'Чат закреплён':'Чат откреплён');break}
+    case 'reply':stopEdit();REPLY=id;closeSheet();renderReply();{const i=$('#inp');if(i&&matchMedia('(pointer:fine)').matches)i.focus()}break;
+    case 'cancel-reply':if(EDIT){stopEdit();break}REPLY=null;renderReply();break;
     case 'emo':{const e=$('#emo');if(e)e.hidden=!e.hidden;break}
-    case 'addemo':{const i=$('#inp');if(i){i.value+=t.dataset.e;DRAFT[S.open]=i.value;growInp();$('#sendb').disabled=false}break}
+    case 'addemo':{const i=$('#inp');if(i){i.value+=t.dataset.e;if(!EDIT)saveDraft(i.value);growInp();$('#sendb').disabled=false}break}
     case 'glass':S.glass=!S.glass;applyTheme();save();renderSide();break;
     case 'accent':S.accent=t.dataset.v||null;applyTheme();save();renderSide();break;
     case 'copy':{const m=(S.chats[S.open]||[]).find(x=>x.id===id);closeSheet();if(m){try{navigator.clipboard.writeText(m.text).then(()=>toast('Скопировано'),()=>toast('Не удалось скопировать'))}catch(x){toast('Не удалось скопировать')}}break}
-    case 'del':{const arr=S.chats[S.open]||[];const i=arr.findIndex(x=>x.id===id);if(ONLINE&&i>=0&&!isTemp(id))api('/api/delete','POST',{id}).catch(()=>toast('Не удалось удалить'));if(i>=0)arr.splice(i,1);if(REPLY===id)REPLY=null;save();closeSheet();renderMsgs();renderReply();renderList();break}
+    case 'del':{const arr=S.chats[S.open]||[];const i=arr.findIndex(x=>x.id===id);if(ONLINE&&i>=0&&!isTemp(id))api('/api/delete','POST',{id}).catch(()=>toast('Не удалось удалить'));if(i>=0)arr.splice(i,1);if(REPLY===id)REPLY=null;if(EDIT===id)stopEdit();save();closeSheet();renderMsgs();renderReply();renderList();break}
   }
 });
 document.addEventListener('submit',async e=>{
@@ -876,14 +940,17 @@ document.addEventListener('submit',async e=>{
     S.contacts.push(c);S.chats[c.id]=[];save();closeSheet();openChat(c.id);
   }
 });
+let draftT=null;
+function saveDraft(v){DRAFT[S.open]=v;S.drafts=DRAFT;clearTimeout(draftT);draftT=setTimeout(()=>{if(S)save()},400)}
 document.addEventListener('input',e=>{
   const t=e.target;if(!S)return;
   if(t.id==='q'){Q=t.value;const l=$('#list');if(l)l.innerHTML=listHtml()}
-  else if(t.id==='inp'){DRAFT[S.open]=t.value;growInp();$('#sendb').disabled=!t.value.trim();if(ONLINE&&t.value&&Date.now()-LASTTYP>3000){LASTTYP=Date.now();api('/api/typing','POST',{to:S.open}).catch(()=>{})}}
+  else if(t.id==='inp'){if(!EDIT)saveDraft(t.value);growInp();$('#sendb').disabled=!t.value.trim();if(ONLINE&&!EDIT&&t.value&&Date.now()-LASTTYP>3000){LASTTYP=Date.now();api('/api/typing','POST',{to:S.open}).catch(()=>{})}}
   else if(t.id==='np'){let d=t.value.replace(/\D/g,'');if(d.length>10&&/^[78]/.test(d))d=d.slice(1);t.value=fmtPhone(d)}
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape')closeSheet();
+  if(e.key==='Enter'&&e.target.classList&&e.target.classList.contains('bub'))e.target.click();
   if(e.key==='Enter'&&!e.shiftKey&&e.target.id==='inp'&&matchMedia('(pointer:fine)').matches){e.preventDefault();send()}
 });
 document.addEventListener('change',e=>{
@@ -897,6 +964,7 @@ document.addEventListener('change',e=>{
   }
 });
 S=load();
+if(S)DRAFT=S.drafts||{};
 // Старые выдуманные контакты из ранних версий убираем из сохранённых данных
 if(S&&S.contacts&&!ONLINE){const old=['alina','max','mama','danya','lena'];S.contacts=S.contacts.filter(c=>!old.includes(c.id));old.forEach(i=>{if(S.chats)delete S.chats[i];if(S.unread)delete S.unread[i]});if(old.includes(S.open))S.open=null;save()}
 if(S&&S.me&&S.contacts&&(!ONLINE||S.tok)){

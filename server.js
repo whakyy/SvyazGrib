@@ -203,8 +203,22 @@ const ROUTES = {
     if (!hit('snd:' + me.id, 60, 6e4)) return fail(res, 429, 'too_fast');
     const rep = b.reply && db.msgs.find(m => m.id === b.reply && (m.from === me.id || m.to === me.id));
     const m = { id: uid(), cid, from: me.id, to: to.id, text, ts: now(), reply: rep ? rep.id : null, status: 'sent' };
+    // подпись «Переслано от» берём из исходного сообщения, чтобы её нельзя было подделать
+    const src = b.fwd && db.msgs.find(x => x.id === b.fwd && (x.from === me.id || x.to === me.id));
+    if (src) m.fwd = src.fwd || (db.users[src.from] || {}).name || 'Без имени';
     db.msgs.push(m); addContact(me.id, to.id); save();
     push(to.id, { type: 'message', msg: m }); push(me.id, { type: 'message', msg: m });
+    out(res, 200, { msg: m });
+  },
+  async 'POST /api/edit'(req, res, url, me, b) {
+    const m = db.msgs.find(x => x.id === b.id && x.from === me.id), text = clean(b.text, 4000);
+    if (!m) return fail(res, 404, 'not_found');
+    if (!text || m.fwd) return fail(res, 400, 'bad_request');
+    if (!hit('edt:' + me.id, 60, 6e4)) return fail(res, 429, 'too_fast');
+    if (text !== m.text) {
+      m.text = text; m.edited = now(); save();
+      const ev = { type: 'edit', id: m.id, text, edited: m.edited }; push(m.from, ev); push(m.to, ev);
+    }
     out(res, 200, { msg: m });
   },
   async 'POST /api/read'(req, res, url, me, b) {
