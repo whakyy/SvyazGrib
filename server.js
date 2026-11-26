@@ -120,7 +120,7 @@ async function tgLoop() {
 
 // ---------- люди и события ----------
 const online = id => conns.has(id) && conns.get(id).size > 0;
-const pub = u => ({ id: u.id, name: u.name, username: u.username || '', bio: u.bio || '', track: u.track || null, online: online(u.id), seen: u.seen || 0 });
+const pub = u => ({ id: u.id, name: u.name, username: u.username || '', bio: u.bio || '', photo: u.photo || '', track: u.track || null, online: online(u.id), seen: u.seen || 0 });
 const own = u => Object.assign(pub(u), { phone: u.phone });
 function push(id, ev) { const s = conns.get(id); if (s) for (const r of s) r.write('data: ' + JSON.stringify(ev) + '\n\n'); }
 function friendsOf(id) { const out = new Set(db.contacts[id] || []); for (const k in db.contacts) if (db.contacts[k].includes(id)) out.add(k); return [...out]; }
@@ -178,6 +178,11 @@ const ROUTES = {
       me.username = un;
     }
     if ('bio' in b) me.bio = clean(b.bio, 120);
+    if ('photo' in b) {
+      const p = String(b.photo || '');
+      if (p && !(p.length <= 16000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+=*$/.test(p))) return fail(res, 400, 'bad_photo');
+      me.photo = p;
+    }
     if ('track' in b) me.track = b.track && TRACKS.includes(b.track.key) ? { key: b.track.key } : null;
     save(); friendsOf(me.id).forEach(f => push(f, { type: 'profile', user: pub(me) }));
     out(res, 200, { user: own(me) });

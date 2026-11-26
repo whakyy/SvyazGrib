@@ -298,7 +298,8 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const PAIRS=[['#FF7A59','#FF4D8D'],['#3B82F6','#22D3EE'],['#8B5CF6','#EC4899'],['#10B981','#3B82F6'],['#F59E0B','#EF4444'],['#14B8A6','#6366F1']];
 const grad=s=>{let h=0;for(const c of String(s))h=(h*31+c.charCodeAt(0))>>>0;const p=PAIRS[h%PAIRS.length];return 'linear-gradient(135deg,'+p[0]+','+p[1]+')'};
 const ini=n=>String(n||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();
-const avatar=(n,id,cls)=>'<span class="av '+(cls||'')+'" style="background:'+grad(id||n)+'">'+esc(ini(n))+'</span>';
+const photoOf=id=>{if(!S||!id)return '';if(S.me&&(id===S.me.id||id===S.me.phone))return S.me.photo||'';const c=(S.contacts||[]).find(x=>x.id===id);return c&&c.photo||''};
+const avatar=(n,id,cls,ph)=>{const p=ph!==undefined?ph:photoOf(id);return p?'<span class="av '+(cls||'')+'" style="background:url(\''+esc(p)+'\') center/cover"></span>':'<span class="av '+(cls||'')+'" style="background:'+grad(id||n)+'">'+esc(ini(n))+'</span>'};
 const fmtT=ts=>new Date(ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
 const dayDiff=ts=>Math.round((new Date().setHours(0,0,0,0)-new Date(ts).setHours(0,0,0,0))/864e5);
 function dayLabel(ts){const d=dayDiff(ts);if(d===0)return 'Сегодня';if(d===1)return 'Вчера';return new Date(ts).toLocaleDateString('ru-RU',{day:'numeric',month:'long'})}
@@ -454,11 +455,11 @@ function seenText(ts){
   if(m<1)return 'только что';if(m<60)return m+' мин назад';
   const d=dayDiff(ts);return d===0?'сегодня в '+fmtT(ts):(d===1?'вчера в '+fmtT(ts):new Date(ts).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}));
 }
-const mapUser=u=>({id:u.id,name:u.name||'Без имени',phone:'',username:u.username||'',bio:u.bio||'',track:u.track&&TRACKS[u.track.key]?u.track.key:null,online:!!u.online,seen:u.seen?'был(а) '+seenText(u.seen):''});
+const mapUser=u=>({id:u.id,name:u.name||'Без имени',phone:'',username:u.username||'',bio:u.bio||'',photo:u.photo||'',track:u.track&&TRACKS[u.track.key]?u.track.key:null,online:!!u.online,seen:u.seen?'был(а) '+seenText(u.seen):''});
 function mapMe(u,old){
   let tr=u.track&&TRACKS[u.track.key]?Object.assign({key:u.track.key},{title:TRACKS[u.track.key].t,artist:TRACKS[u.track.key].a}):null;
   if(!tr&&old&&old.track&&old.track.key==='custom')tr=old.track;
-  return{id:u.id,name:u.name,username:u.username||'',phone:fmtMe(u.phone),bio:u.bio||'',track:tr};
+  return{id:u.id,name:u.name,username:u.username||'',phone:fmtMe(u.phone),bio:u.bio||'',photo:u.photo||'',track:tr};
 }
 const mapMsg=m=>({id:m.id,edited:m.edited||0,fwd:m.fwd||null,from:m.from===S.me.id?'me':m.from,text:m.text,ts:m.ts,status:m.status,reply:m.reply||null,react:m.react||null});
 function emptyState(me){return{tok:TOK,me:me,contacts:[],chats:{},unread:{},tab:'chats',open:null,theme:'system'}}
@@ -854,9 +855,22 @@ function cprofileSheet(id){
   const tr=c.track?trkInfo(c.track):null;
   sheet('<div class="hero">'+avatar(c.name,c.id,'xl')+'<h3>'+esc(c.name)+'</h3><div class="sub">'+esc(statusText(c))+'</div></div>'+(c.bio?'<div class="bio"><small>О себе</small>'+esc(c.bio)+'</div>':'')+(c.phone?'<div class="bio"><small>Телефон</small>'+esc(c.phone)+'</div>':'')+(c.username?'<div class="bio"><small>Имя пользователя</small>@'+esc(c.username)+'</div>':'')+(tr?'<div class="bio" style="background:none;padding:0"><small style="padding:0 2px 6px">Музыка в профиле</small>'+musicCard(tr,false)+'</div>':'')+'<button class="btn ghost" data-act="pin" data-id="'+esc(c.id)+'">'+ic('pin')+(isPinned(c.id)?'Открепить чат':'Закрепить чат')+'</button><button class="btn ghost" data-act="close">Закрыть</button>');
 }
+let NEWPHOTO;
+function showPhoto(){$('#ephv').innerHTML=avatar(S.me.name,S.me.id,'xl',NEWPHOTO)}
+// фото обрезается в квадрат и сжимается на телефоне, чтобы не раздувать базу
+function pickPhoto(file){
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{const c=document.createElement('canvas'),side=Math.min(img.width,img.height);let size=192,q=.8,out;
+    do{c.width=c.height=size;c.getContext('2d').drawImage(img,(img.width-side)/2,(img.height-side)/2,side,side,0,0,size,size);out=c.toDataURL('image/jpeg',q);if(q>.5)q-=.1;else size-=32}while(out.length>16000&&size>=64);
+    URL.revokeObjectURL(url);NEWPHOTO=out;if($('#ephv'))showPhoto()};
+  img.onerror=()=>{URL.revokeObjectURL(url);toast('Не удалось открыть фото')};
+  img.src=url;
+}
+document.addEventListener('change',e=>{if(e.target.id==='eph'&&e.target.files[0])pickPhoto(e.target.files[0])});
+document.addEventListener('click',e=>{if(e.target.closest('#ephdel')){NEWPHOTO='';showPhoto()}});
 function editSheet(){
-  const m=S.me;
-  sheet('<h3>Редактировать профиль</h3><form id="f-edit" class="fld" style="gap:12px"><div class="fld"><label for="en">Имя</label><input id="en" class="inp" maxlength="40" value="'+esc(m.name)+'"></div><div class="fld"><label for="eu">Имя пользователя</label><input id="eu" class="inp" maxlength="20" autocapitalize="none" value="'+esc(m.username)+'" placeholder="@username"></div><div class="fld"><label for="eb">О себе</label><textarea id="eb" class="inp" maxlength="120">'+esc(m.bio)+'</textarea></div><div class="err" id="eerr"></div><button class="btn">Сохранить</button></form>');
+  const m=S.me;NEWPHOTO=undefined;
+  sheet('<h3>Редактировать профиль</h3><form id="f-edit" class="fld" style="gap:12px"><div id="ephv" style="display:flex;justify-content:center">'+avatar(m.name,m.phone,'xl')+'</div><label class="btn ghost" for="eph">Выбрать фото</label><input id="eph" type="file" accept="image/*" hidden><button type="button" class="btn ghost" id="ephdel">Убрать фото</button><div class="fld"><label for="en">Имя</label><input id="en" class="inp" maxlength="40" value="'+esc(m.name)+'"></div><div class="fld"><label for="eu">Имя пользователя</label><input id="eu" class="inp" maxlength="20" autocapitalize="none" value="'+esc(m.username)+'" placeholder="@username"></div><div class="fld"><label for="eb">О себе</label><textarea id="eb" class="inp" maxlength="120">'+esc(m.bio)+'</textarea></div><div class="err" id="eerr"></div><button class="btn">Сохранить</button></form>');
 }
 function trackRow(k,title,artist){
   const sel=S.me.track&&S.me.track.key===k;
@@ -920,8 +934,8 @@ document.addEventListener('submit',async e=>{
     const nm=$('#en').value.trim(),un=$('#eu').value.trim().replace(/^@/,'');
     if(nm.length<2){$('#eerr').textContent='Введите имя';return}
     if(un&&!/^[A-Za-z0-9_]{3,20}$/.test(un)){$('#eerr').textContent=ERR.bad_username;return}
-    if(ONLINE){try{await api('/api/me','PUT',{name:nm,username:un,bio:$('#eb').value.trim()})}catch(er){$('#eerr').textContent=errText(er);return}}
-    S.me.name=nm;S.me.username=un;S.me.bio=$('#eb').value.trim();save();closeSheet();renderSide();toast('Профиль сохранён');
+    if(ONLINE){try{await api('/api/me','PUT',Object.assign({name:nm,username:un,bio:$('#eb').value.trim()},NEWPHOTO!==undefined?{photo:NEWPHOTO}:{}))}catch(er){$('#eerr').textContent=errText(er);return}}
+    if(NEWPHOTO!==undefined)S.me.photo=NEWPHOTO;S.me.name=nm;S.me.username=un;S.me.bio=$('#eb').value.trim();save();closeSheet();renderSide();toast('Профиль сохранён');
   }else if(f.id==='f-find'){
     e.preventDefault();
     const q=$('#fq').value.trim();if(!q)return;
