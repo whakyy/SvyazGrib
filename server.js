@@ -18,11 +18,13 @@ let gistOK = false; // пока данные не загружены из Gist, 
 const GH_API = process.env.GH_API || 'https://api.github.com', GH_TOKEN = process.env.GH_TOKEN || '', GIST_ID = process.env.GIST_ID || '';
 const ghH = { Authorization: 'Bearer ' + GH_TOKEN, 'User-Agent': 'gribsvyaz', Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
 const save = () => { dirty = true; };
+const useGist = () => !!(process.env.GH_TOKEN && process.env.GIST_ID);
+const ready = () => !useGist() || gistOK; // без базы любой вход выглядел бы как «неизвестный» и людей выкидывало бы
 // Данные хранятся в файле и, если заданы GH_TOKEN и GIST_ID, в приватном Gist (на бесплатном Render диск стирается).
 async function gistLoad() {
   if (!GH_TOKEN || !GIST_ID) return;
   try {
-    const j = await (await fetch(GH_API + '/gists/' + GIST_ID, { headers: ghH })).json(), f = j.files && j.files['data.json'];
+    const j = await (await fetch(GH_API + '/gists/' + GIST_ID, { headers: ghH, signal: AbortSignal.timeout(15000) })).json(), f = j.files && j.files['data.json'];
     if (!f) throw new Error('в Gist нет файла data.json');
     const t = f.truncated ? await (await fetch(f.raw_url, { headers: ghH })).text() : f.content;
     db = Object.assign(db, JSON.parse(t || '{}')); gistOK = true; console.log('Данные загружены из Gist');
@@ -41,7 +43,7 @@ async function flush() {
   }
 }
 setInterval(flush, 3000);
-['SIGTERM', 'SIGINT'].forEach(s => process.on(s, async () => { await flush(); process.exit(0); }));
+['SIGTERM', 'SIGINT'].forEach(s => process.on(s, async () => { while (saving) await new Promise(r => setTimeout(r, 100)); await flush(); process.exit(0); }));
 
 const codes = {}, pend = {}, rl = {}, conns = new Map();
 const now = () => Date.now();
@@ -196,9 +198,11 @@ const ROUTES = {
   async 'POST /api/send'(req, res, url, me, b) {
     const to = db.users[b.to], text = clean(b.text, 4000);
     if (!to || to.id === me.id || !text) return fail(res, 400, 'bad_request');
+    const cid = clean(b.cid, 40), dup = cid && db.msgs.find(m => m.from === me.id && m.to === to.id && m.cid === cid);
+    if (dup) return out(res, 200, { msg: dup });
     if (!hit('snd:' + me.id, 60, 6e4)) return fail(res, 429, 'too_fast');
     const rep = b.reply && db.msgs.find(m => m.id === b.reply && (m.from === me.id || m.to === me.id));
-    const m = { id: uid(), cid: clean(b.cid, 40), from: me.id, to: to.id, text, ts: now(), reply: rep ? rep.id : null, status: 'sent' };
+    const m = { id: uid(), cid, from: me.id, to: to.id, text, ts: now(), reply: rep ? rep.id : null, status: 'sent' };
     db.msgs.push(m); addContact(me.id, to.id); save();
     push(to.id, { type: 'message', msg: m }); push(me.id, { type: 'message', msg: m });
     out(res, 200, { msg: m });
@@ -241,19 +245,23 @@ const OPEN = new Set(['POST /api/code', 'POST /api/verify']);
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
-  if (url.pathname === '/health') return out(res, 200, { ok: true, mode: mode() });
+  if (url.pathname === '/health') return out(res, ready() ? 200 : 503, { ok: ready(), mode: mode(), storage: useGist() ? 'gist' : 'file' });
+  if (url.pathname === '/sw.js') { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(fs.readFileSync(path.join(__dirname, 'sw.js'))); }
   if (url.pathname === '/' || url.pathname === '/index.html') {
     try {
       const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8').replace('<head>', '<head><script>window.__API__=""</script>');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(html);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache', 'X-Gribsvyaz': '1' }); return res.end(html);
     } catch (e) { res.writeHead(404); return res.end('index.html не найден'); }
   }
   const key = req.method + ' ' + url.pathname, h = ROUTES[key];
   if (!h) return fail(res, 404, 'not_found');
+  if (!ready()) return fail(res, 503, 'starting'); // 503, а не 401: приложение не должно разлогиниваться
   try {
     const me = authed(req, url);
     if (!OPEN.has(key) && !me) return fail(res, 401, 'unauthorized');
     const b = req.method === 'GET' ? {} : await readBody(req);
     await h(req, res, url, me, b);
   } catch (e) { console.error(key, e.message); if (!res.headersSent) fail(res, 400, 'bad_request'); }
-}).listen(PORT, async () => { console.log('ГрибСвязь на порту ' + PORT + ', код входа: ' + mode()); await gistLoad(); if (mode() === 'tg') tgLoop(); });
+}).listen(PORT, async () => { console.log('ГрибСвязь на порту ' + PORT + ', код входа: ' + mode()); for (;;) { await gistLoad(); if (ready()) break; await new Promise(r => setTimeout(r, 5000)); }
+  if (!useGist()) console.warn('ВНИМАНИЕ: GH_TOKEN и GIST_ID не заданы. На бесплатном Render все аккаунты сотрутся при перезапуске.');
+  if (mode() === 'tg') tgLoop(); });

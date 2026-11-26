@@ -455,8 +455,10 @@ async function sync(){
   const keep={};(S.contacts||[]).forEach(c=>keep[c.id]=c);
   S.me=mapMe(j.me,S.me);
   S.contacts=j.users.map(mapUser);
+  const queued=[];for(const k in S.chats)S.chats[k].forEach(m=>{if(m.from==='me'&&isTemp(m.id)&&!j.messages.some(x=>x.from===j.me.id&&x.cid===m.id))queued.push([k,m])});
   S.chats={};S.contacts.forEach(c=>S.chats[c.id]=[]);
   j.messages.forEach(m=>{const o=m.from===S.me.id?m.to:m.from;(S.chats[o]=S.chats[o]||[]).push(mapMsg(m))});
+  queued.forEach(([k,m])=>(S.chats[k]=S.chats[k]||[]).push(m));
   for(const id in S.chats)S.chats[id].sort((a,b)=>a.ts-b.ts);
   recountUnread();
   if(S.open)markRead(S.open);
@@ -473,6 +475,32 @@ function forceLogout(){
   try{localStorage.removeItem(KEY)}catch(x){}
   S=null;TOK=null;TYP={};DRAFT={};REPLY=null;applyTheme();renderAuth('phone');toast('Нужно войти заново');
 }
+let FLUSHING=false;
+async function flushQueue(){
+  if(FLUSHING||!ONLINE||!S||!TOK)return;FLUSHING=true;
+  const me=S,list=[];
+  for(const k in me.chats)me.chats[k].forEach(m=>{if(m.from==='me'&&m.status==='sending'&&isTemp(m.id))list.push([k,m])});
+  list.sort((a,b)=>a[1].ts-b[1].ts);
+  for(const [to,om] of list){
+    if(S!==me)break;
+    const cid=om.id;
+    if(!(me.chats[to]||[]).some(m=>m.id===cid))continue; // удалили, пока ждало в очереди
+    try{
+      const r=await api('/api/send','POST',{to,text:om.text,reply:om.reply,cid});
+      om.id=r.msg.id;om.ts=r.msg.ts;if(om.status==='sending')om.status=r.msg.status;
+      // пока шёл запрос, sync мог пересобрать чат: обновляем и новую копию
+      if(S===me)(S.chats[to]||[]).forEach(m=>{if(m.id===cid)Object.assign(m,om)});
+    }catch(e){
+      if(e.code==='network'||e.status>=500||e.status===429||e.status===401)break; // остаётся в очереди
+      om.status='failed';toast(errText(e));
+    }
+    if(S===me){save();if(S.open===to)renderMsgs()}
+  }
+  FLUSHING=false;
+}
+setInterval(flushQueue,5000);
+window.addEventListener('online',()=>{if(ONLINE&&S){connect();flushQueue()}});
+if(ONLINE&&API===''&&'serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 let ES=null,ESOPEN=false,LNASKED=false,TYPT={},LASTTYP=0,LASTIN={};
 async function notifyMsg(title,body){
   try{const LN=window.Capacitor&&window.Capacitor.Plugins&&window.Capacitor.Plugins.LocalNotifications;if(LN)await LN.schedule({notifications:[{id:Math.floor(Math.random()*2e9),title,body}]})}catch(e){}
@@ -487,7 +515,10 @@ function connect(){
   if(ES)ES.close();
   ESOPEN=false;
   ES=new EventSource(API+'/api/events?token='+encodeURIComponent(TOK));
-  ES.onopen=()=>{if(ESOPEN)sync().then(()=>{renderSide();renderMain()}).catch(()=>{});ESOPEN=true};
+  const es=ES;
+  es.onopen=()=>{sync().then(()=>{renderSide();renderMain();flushQueue()}).catch(()=>{})};
+  // при ответе 502/503 браузер сам не переподключается, делаем это за него
+  es.onerror=()=>{if(es.readyState===2)setTimeout(()=>{if(ES===es)connect()},4000)};
   ES.onmessage=e=>{try{onEvent(JSON.parse(e.data))}catch(x){}};
   askNotify();
 }
@@ -690,7 +721,7 @@ function msgHtml(m,c,g){
   const out=m.from==='me';
   let q='';
   if(m.reply){const r=(S.chats[c.id]||[]).find(x=>x.id===m.reply);if(r)q='<div class="quote"><b>'+esc(r.from==='me'?'Вы':c.name)+'</b><span>'+esc(r.text)+'</span></div>'}
-  const tick=out?(m.status==='read'?ic('checks'):m.status==='sending'?'':m.status==='failed'?'<b style="color:#ffd0d0">!</b>':ic('check')):'';
+  const tick=out?(m.status==='read'?ic('checks'):m.status==='sending'?'<span title="Отправится, когда появится связь">🕓</span>':m.status==='failed'?'<b style="color:#ffd0d0">!</b>':ic('check')):'';
   return '<div class="msg '+(out?'out':'in')+(g?' g':'')+'"><button class="bub'+(m.id===NEWID?' new':'')+'" data-act="msg" data-id="'+m.id+'">'+q+'<span class="txt">'+esc(m.text)+'</span><span class="meta">'+fmtT(m.ts)+tick+'</span></button>'+(m.react?'<span class="react">'+esc(m.react)+'</span>':'')+'</div>';
 }
 function renderMsgs(stick){
@@ -741,7 +772,7 @@ function send(){
     const om={id:'t'+uid(),from:'me',text:t,ts:Date.now(),status:'sending',reply:REPLY&&!isTemp(REPLY)?REPLY:null};
     (S.chats[id]=S.chats[id]||[]).push(om);NEWID=om.id;REPLY=null;DRAFT[id]='';inp.value='';growInp();
     $('#sendb').disabled=true;renderReply();save();renderMsgs(true);renderList();
-    api('/api/send','POST',{to:id,text:t,reply:om.reply,cid:om.id}).then(r=>{om.id=r.msg.id;om.ts=r.msg.ts;if(om.status==='sending')om.status='sent';save();if(S&&S.open===id)renderMsgs()}).catch(e=>{om.status='failed';if(S){save();if(S.open===id)renderMsgs()}toast(errText(e))});
+    flushQueue();
     return;
   }
   const m={id:uid(),from:'me',text:t,ts:Date.now(),status:'sent',reply:REPLY||null};

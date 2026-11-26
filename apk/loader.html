@@ -23,10 +23,11 @@ button:active{transform:scale(.97)}
 // Страницу приложения грузим с сервера: любое обновление интерфейса приходит всем без новой установки APK.
 var SERVER='https://gribsvyaz.onrender.com',MAX=100000,t0,done=false;
 var s=document.getElementById('s'),r=document.getElementById('r');
-function go(){if(done)return;done=true;location.replace(SERVER)}
+function go(){if(done)return;done=true;try{localStorage.setItem('gv_seen','1')}catch(e){}location.replace(SERVER)}
+function seen(){try{return localStorage.getItem('gv_seen')==='1'}catch(e){return false}}
 function ping(){
   if(done)return;
-  if(navigator.onLine===false){fail('Нет интернета. Включите сеть и попробуйте снова.');return}
+  if(navigator.onLine===false){if(seen()){done=true;location.replace(SERVER);return}fail('Нет интернета. Включите сеть и попробуйте снова.');return}
   var c=new AbortController(),to=setTimeout(function(){c.abort()},8000);
   fetch(SERVER+'/health',{cache:'no-store',signal:c.signal}).then(function(x){clearTimeout(to);if(x.ok)go();else retry()}).catch(function(){clearTimeout(to);retry()});
 }
