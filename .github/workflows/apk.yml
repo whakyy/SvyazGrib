@@ -17,10 +17,11 @@ jobs:
           java-version: 17
       - name: Create Android app
         run: |
-          mkdir -p www && cp index.html www/index.html
+          mkdir -p www && cp apk/loader.html www/index.html
           npm init -y
           npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/local-notifications@6
           npx cap init "ГрибСвязь" com.gribsvyaz.app --web-dir www
+          node -e "const fs=require('fs');const f='capacitor.config.json';if(!fs.existsSync(f)){console.error('нет '+f);process.exit(1)}const c=JSON.parse(fs.readFileSync(f,'utf8'));c.server={androidScheme:'https',allowNavigation:['gribsvyaz.onrender.com']};fs.writeFileSync(f,JSON.stringify(c,null,2))"
           npx cap add android
           npx cap sync android
       - name: Build APK
