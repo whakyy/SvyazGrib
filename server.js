@@ -30,20 +30,23 @@ async function gistLoad() {
     db = Object.assign(db, JSON.parse(t || '{}')); gistOK = true; console.log('Данные загружены из Gist');
   } catch (e) { console.error('Gist: не удалось загрузить данные: ' + e.message); }
 }
-async function flush() {
+// GitHub ограничивает частые записи, поэтому в Gist пишем не чаще раза в GIST_GAP мс.
+const GIST_GAP = +(process.env.GIST_GAP || 15000);
+let nextWrite = 0;
+async function flush(force) {
   if (!dirty || saving) return;
-  if (GH_TOKEN && GIST_ID && !gistOK) return; dirty = false;
+  if (GH_TOKEN && GIST_ID && (!gistOK || (!force && Date.now() < nextWrite))) return; dirty = false;
   const txt = JSON.stringify(db);
   try { fs.writeFileSync(DATA + '.tmp', txt); fs.renameSync(DATA + '.tmp', DATA); } catch (e) {}
   if (GH_TOKEN && GIST_ID && gistOK) {
-    saving = true;
+    saving = true; nextWrite = Date.now() + GIST_GAP;
     try { const r = await fetch(GH_API + '/gists/' + GIST_ID, { method: 'PATCH', headers: ghH, body: JSON.stringify({ files: { 'data.json': { content: txt } } }) }); if (!r.ok) throw new Error('HTTP ' + r.status); }
-    catch (e) { dirty = true; console.error('Gist: не удалось сохранить: ' + e.message); }
+    catch (e) { dirty = true; nextWrite = Date.now() + Math.max(GIST_GAP, 60000); console.error('Gist: не удалось сохранить: ' + e.message); }
     saving = false;
   }
 }
-setInterval(flush, 3000);
-['SIGTERM', 'SIGINT'].forEach(s => process.on(s, async () => { while (saving) await new Promise(r => setTimeout(r, 100)); await flush(); process.exit(0); }));
+setInterval(() => flush(), 3000);
+['SIGTERM', 'SIGINT'].forEach(s => process.on(s, async () => { while (saving) await new Promise(r => setTimeout(r, 100)); await flush(true); process.exit(0); }));
 
 const codes = {}, pend = {}, rl = {}, conns = new Map();
 const now = () => Date.now();
@@ -103,6 +106,11 @@ function onTg(m) {
     if (pend[phone] && pend[phone] > now()) { delete pend[phone]; tgSend(m.chat.id, 'Номер подтверждён ✅', { remove_keyboard: true }); return tgCode(m.chat.id, makeCode(phone)); }
     return tgSend(m.chat.id, 'Номер подтверждён ✅ Вернитесь в ГрибСвязь и запросите код.', { remove_keyboard: true });
   }
+  const cmd = (m.text || '').trim();
+  if (cmd === '/off' || cmd === '/on') {
+    db.mute = db.mute || {}; db.mute[m.chat.id] = cmd === '/off'; save();
+    return tgSend(m.chat.id, cmd === '/off' ? 'Уведомления выключены. Включить: /on' : 'Уведомления включены. Выключить: /off');
+  }
   if ((m.text || '').startsWith('/start')) tgSend(m.chat.id, 'Это бот входа в ГрибСвязь 🍄\nНажмите кнопку, подтвердите номер, и код придёт сюда.', askKb);
 }
 async function tgLoop() {
@@ -126,6 +134,13 @@ function push(id, ev) { const s = conns.get(id); if (s) for (const r of s) r.wri
 function friendsOf(id) { const out = new Set(db.contacts[id] || []); for (const k in db.contacts) if (db.contacts[k].includes(id)) out.add(k); return [...out]; }
 function addContact(a, b) { for (const [x, y] of [[a, b], [b, a]]) { const l = db.contacts[x] = db.contacts[x] || []; if (!l.includes(y)) l.push(y); } save(); }
 function presence(u) { const ev = { type: 'presence', id: u.id, online: online(u.id), seen: u.seen || 0 }; friendsOf(u.id).forEach(f => push(f, ev)); }
+
+// Получатель не в сети: коротко пишем ему в Telegram (без текста сообщения), не чаще раза в 5 минут от одного человека.
+function tgNotify(to, from) {
+  const chat = TG && !online(to.id) && db.tg[to.phone];
+  if (!chat || (db.mute && db.mute[chat]) || !hit('tgn:' + to.id + ':' + from.id, 1, 3e5)) return;
+  tgSend(chat, '🍄 Новое сообщение в ГрибСвязь от ' + (from.name || 'друга') + '\nОтключить уведомления: /off');
+}
 
 // ---------- HTTP ----------
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS' };
@@ -160,7 +175,7 @@ const ROUTES = {
     let u = Object.values(db.users).find(x => x.phone === phone);
     if (!u) { const id = uid(); u = db.users[id] = { id, phone, name: '', created: now() }; }
     const token = crypto.randomBytes(24).toString('base64url');
-    db.sessions[sha(token)] = u.id; save();
+    db.sessions[sha(token)] = u.id; save(); flush(true);
     out(res, 200, { token, user: own(u) });
   },
   'GET /api/sync'(req, res, url, me) {
@@ -213,6 +228,7 @@ const ROUTES = {
     if (src) m.fwd = src.fwd || (db.users[src.from] || {}).name || 'Без имени';
     db.msgs.push(m); addContact(me.id, to.id); save();
     push(to.id, { type: 'message', msg: m }); push(me.id, { type: 'message', msg: m });
+    tgNotify(to, me);
     out(res, 200, { msg: m });
   },
   async 'POST /api/edit'(req, res, url, me, b) {
@@ -283,4 +299,7 @@ http.createServer(async (req, res) => {
   } catch (e) { console.error(key, e.message); if (!res.headersSent) fail(res, 400, 'bad_request'); }
 }).listen(PORT, async () => { console.log('ГрибСвязь на порту ' + PORT + ', код входа: ' + mode()); for (;;) { await gistLoad(); if (ready()) break; await new Promise(r => setTimeout(r, 5000)); }
   if (!useGist()) console.warn('ВНИМАНИЕ: GH_TOKEN и GIST_ID не заданы. На бесплатном Render все аккаунты сотрутся при перезапуске.');
-  if (mode() === 'tg') tgLoop(); });
+  if (TG) tgLoop();
+  // бесплатный Render усыпляет сервис без запросов: раз в 10 минут обращаемся к себе по внешнему адресу
+  const self = process.env.RENDER_EXTERNAL_URL;
+  if (self) setInterval(() => fetch(self + '/health', { signal: AbortSignal.timeout(15000) }).catch(() => {}), 6e5); });
