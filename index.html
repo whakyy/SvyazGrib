@@ -878,7 +878,7 @@ function callUi(c,status,incoming){
   else b.querySelector('.mu').onclick=()=>{if(!c.stream)return;c.muted=!c.muted;c.stream.getAudioTracks().forEach(t=>t.enabled=!c.muted);callUi(c,c.el.querySelector('.st').textContent)};
 }
 function endCall(tell,msg){
-  const c=CALL;if(!c)return;CALL=null;clearTimeout(c.to);clearInterval(c.ring);
+  const c=CALL;if(!c)return;CALL=null;clearTimeout(c.to);clearInterval(c.ring);hush(c);
   if(tell)sig(c,'end').catch(()=>{});
   if(c.stream)c.stream.getTracks().forEach(t=>t.stop());
   if(c.pc)c.pc.close();if(c.el)c.el.remove();if(msg)toast(msg);
@@ -906,19 +906,31 @@ async function startCall(peer,video){
   }catch(e){if(CALL===c)endCall(false,e&&e.code?errText(e):NOACCESS)}
 }
 async function acceptCall(){
-  const c=CALL;if(!c||!c.offer||c.accepted)return;c.accepted=true;clearInterval(c.ring);stopAll();if(VOICE)VOICE.pause();callUi(c,'Соединяем…');
+  const c=CALL;if(!c||!c.offer||c.accepted)return;c.accepted=true;clearInterval(c.ring);hush(c);stopAll();if(VOICE)VOICE.pause();callUi(c,'Соединяем…');
   try{
     const pc=await setupPeer(c);await pc.setRemoteDescription(c.offer);await addIce(c);
     await pc.setLocalDescription(await pc.createAnswer());await sig(c,'answer',{sdp:pc.localDescription});
   }catch(e){if(CALL===c)endCall(true,e&&e.code?errText(e):NOACCESS)}
 }
+// звонок «как у домофона»: быстрая трель из двух тонов, звук рисуем сами, без файла
+function domofon(c){
+  try{
+    actx();hush(c);const g=c.snd=AC.createGain();g.gain.value=.22;g.connect(AC.destination);
+    const o=AC.createOscillator(),t=AC.currentTime;o.type='square';
+    for(let i=0;i<24;i++)o.frequency.setValueAtTime(i%2?790:990,t+i*.05);
+    o.connect(g);o.start(t);o.stop(t+1.2);
+  }catch(e){}
+}
+function hush(c){if(c.snd){c.snd.disconnect();c.snd=null}}
+// телефон разрешает звук только после касания: готовим его заранее
+document.addEventListener('pointerdown',()=>{try{actx()}catch(e){}});
 async function onCall(ev){
   const c=CALL;
   if(ev.kind==='offer'){
     if(!ev.data||!ev.data.sdp)return;
     if(c||REC){api('/api/call','POST',{to:ev.from,cid:ev.cid,kind:'end',data:{busy:1}}).catch(()=>{});return}
     const n=CALL={peer:ev.from,cid:ev.cid,video:!!ev.data.video,offer:ev.data.sdp,ice:[]};
-    const buzz=()=>{try{navigator.vibrate&&navigator.vibrate([500,200,500])}catch(x){}};buzz();n.ring=setInterval(buzz,2000);
+    const buzz=()=>{domofon(n);try{navigator.vibrate&&navigator.vibrate([500,200,500])}catch(x){}};buzz();n.ring=setInterval(buzz,2000);
     n.to=setTimeout(()=>{if(CALL===n)endCall(false,'Пропущенный звонок')},45000);
     callUi(n,n.video?'Входящий видеозвонок':'Входящий звонок',true);
     if(document.hidden){const u=cById(ev.from);notifyMsg(u?u.name:'ГрибСвязь','📞 Входящий звонок')}
