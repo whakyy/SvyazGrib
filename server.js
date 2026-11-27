@@ -147,12 +147,23 @@ function tgNotify(to, from) {
 const LINES = ['012', '345', '678', '036', '147', '258', '048', '246'];
 const winner = b => { for (const l of LINES) { const [x, y, z] = l.split('').map(i => b[i]); if (x !== '.' && x === y && y === z) return x; } return ''; };
 
+// ---------- фото, голосовые, кружки ----------
+// Лежат на диске сервера, а не в Gist: на бесплатном Render они пропадают при перезапуске.
+const MDIR = process.env.MEDIA_DIR || path.join(__dirname, 'media'), MCAP = 150e6;
+try { fs.mkdirSync(MDIR, { recursive: true }); } catch (e) {}
+const KINDS = { photo: ['📷 Фото', /^image\/jpeg$/], voice: ['🎤 Голосовое', /^audio\/(webm|ogg|mp4)$/], circle: ['⭕ Кружок', /^video\/(webm|mp4)$/] };
+const mfile = id => path.join(MDIR, id);
+function trimMedia() {
+  const l = fs.readdirSync(MDIR).map(n => ({ n, s: fs.statSync(mfile(n)) })).sort((a, b) => b.s.mtimeMs - a.s.mtimeMs);
+  let sum = 0; for (const f of l) { sum += f.s.size; if (sum > MCAP) fs.unlinkSync(mfile(f.n)); }
+}
+
 // ---------- HTTP ----------
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS' };
 function out(res, code, obj) { res.writeHead(code, Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, CORS)); res.end(JSON.stringify(obj)); }
 const fail = (res, code, error) => out(res, code, { error });
-function readBody(req) {
-  return new Promise((ok, no) => { let b = ''; req.on('data', c => { b += c; if (b.length > 80000) { no(new Error('big')); req.destroy(); } }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { no(e); } }); req.on('error', no); });
+function readBody(req, max = 80000) {
+  return new Promise((ok, no) => { let b = ''; req.on('data', c => { b += c; if (b.length > max) { no(new Error('big')); req.destroy(); } }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { no(e); } }); req.on('error', no); });
 }
 const ipOf = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 function authed(req, url) {
@@ -237,6 +248,7 @@ const ROUTES = {
     const m = { id: uid(), cid, from: me.id, to: to.id, text, ts: now(), reply: rep ? rep.id : null, status: 'sent' };
     // подпись «Переслано от» берём из исходного сообщения, чтобы её нельзя было подделать
     const src = b.fwd && db.msgs.find(x => x.id === b.fwd && (x.from === me.id || x.to === me.id));
+    if (src && src.media) return fail(res, 400, 'bad_request');
     if (src) m.fwd = src.fwd || (db.users[src.from] || {}).name || 'Без имени';
     if (b.game === 'xo') m.game = { board: '.........' };
     else if (b.secret || (src && src.secret)) m.secret = true;
@@ -248,7 +260,7 @@ const ROUTES = {
   async 'POST /api/edit'(req, res, url, me, b) {
     const m = db.msgs.find(x => x.id === b.id && x.from === me.id), text = clean(b.text, 4000);
     if (!m) return fail(res, 404, 'not_found');
-    if (!text || m.fwd || m.game) return fail(res, 400, 'bad_request');
+    if (!text || m.fwd || m.game || m.media) return fail(res, 400, 'bad_request');
     if (!hit('edt:' + me.id, 60, 6e4)) return fail(res, 429, 'too_fast');
     if (text !== m.text) {
       m.text = text; m.edited = now(); save();
@@ -269,7 +281,7 @@ const ROUTES = {
   },
   async 'POST /api/delete'(req, res, url, me, b) {
     const i = db.msgs.findIndex(x => x.id === b.id && x.from === me.id); if (i < 0) return fail(res, 404, 'not_found');
-    const m = db.msgs.splice(i, 1)[0]; save();
+    const m = db.msgs.splice(i, 1)[0]; save(); if (m.media) fs.unlink(mfile(m.media.id), () => {});
     const ev = { type: 'delete', id: m.id }; push(m.from, ev); push(m.to, ev); out(res, 200, { ok: true });
   },
   async 'POST /api/logout'(req, res, url) {
@@ -285,6 +297,36 @@ const ROUTES = {
     m.game.board = bd.slice(0, i) + (me.id === m.from ? 'x' : 'o') + bd.slice(i + 1); save();
     const ev = { type: 'game', id: m.id, game: m.game }; push(m.from, ev); push(m.to, ev);
     out(res, 200, { game: m.game });
+  },
+  async 'POST /api/media'(req, res, url, me, b) {
+    const to = db.users[b.to], k = Object.prototype.hasOwnProperty.call(KINDS, b.kind) && KINDS[b.kind];
+    const p = /^data:([a-z]+\/[a-z0-9]+)(?:;codecs=[^;]*)?;base64,([A-Za-z0-9+\/]+=*)$/.exec(String(b.data || ''));
+    if (!to || to.id === me.id || !k || !p || !k[1].test(p[1])) return fail(res, 400, 'bad_media');
+    if (!hit('med:' + me.id, 15, 6e4)) return fail(res, 429, 'too_fast');
+    const mid = uid() + uid();
+    fs.writeFileSync(mfile(mid), Buffer.from(p[2], 'base64')); trimMedia();
+    const m = { id: uid(), cid: '', from: me.id, to: to.id, text: k[0], ts: now(), reply: null, status: 'sent', media: { id: mid, kind: b.kind, type: p[1], dur: Math.min(60, Math.max(0, Math.round(+b.dur) || 0)) } };
+    db.msgs.push(m); addContact(me.id, to.id); save();
+    push(to.id, { type: 'message', msg: m }); push(me.id, { type: 'message', msg: m }); tgNotify(to, me);
+    out(res, 200, { msg: m });
+  },
+  'GET /api/media'(req, res, url, me) {
+    const mid = url.searchParams.get('id');
+    const m = db.msgs.find(x => x.media && x.media.id === mid && (x.from === me.id || x.to === me.id));
+    if (!m || !fs.existsSync(mfile(m.media.id))) return fail(res, 404, 'gone');
+    res.writeHead(200, Object.assign({ 'Content-Type': m.media.type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' }, CORS));
+    fs.createReadStream(mfile(m.media.id)).pipe(res);
+  },
+  // звонки: сервер только передаёт служебные сообщения, звук и видео идут между телефонами
+  async 'POST /api/call'(req, res, url, me, b) {
+    const to = db.users[b.to], cid = clean(b.cid, 40);
+    if (!to || to.id === me.id || !cid || !['offer', 'answer', 'ice', 'end'].includes(b.kind) || !(db.contacts[me.id] || []).includes(to.id)) return fail(res, 400, 'bad_request');
+    if (!hit('call:' + me.id, 300, 6e4) || (b.kind === 'offer' && !hit('ring:' + me.id, 6, 6e4))) return fail(res, 429, 'too_fast');
+    const got = online(to.id);
+    push(to.id, { type: 'call', from: me.id, cid, kind: b.kind, data: b.data || null });
+    if (b.kind === 'answer' || b.kind === 'end') push(me.id, { type: 'call', from: to.id, cid, kind: 'taken' });
+    if (!got && b.kind === 'offer') tgNotify(to, me);
+    out(res, 200, { ok: true, online: got });
   },
   async 'POST /api/nudge'(req, res, url, me, b) {
     const to = db.users[b.to];
@@ -324,7 +366,7 @@ http.createServer(async (req, res) => {
   try {
     const me = authed(req, url);
     if (!OPEN.has(key) && !me) return fail(res, 401, 'unauthorized');
-    const b = req.method === 'GET' ? {} : await readBody(req);
+    const b = req.method === 'GET' ? {} : await readBody(req, key === 'POST /api/media' ? 3e6 : 80000);
     await h(req, res, url, me, b);
   } catch (e) { console.error(key, e.message); if (!res.headersSent) fail(res, 400, 'bad_request'); }
 }).listen(PORT, async () => { console.log('ГрибСвязь на порту ' + PORT + ', код входа: ' + mode()); for (;;) { await gistLoad(); if (ready()) break; await new Promise(r => setTimeout(r, 5000)); }
