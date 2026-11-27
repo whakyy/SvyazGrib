@@ -353,6 +353,8 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (req.method === 'OPTIONS') { res.writeHead(204, CORS); return res.end(); }
   if (url.pathname === '/health') return out(res, ready() ? 200 : 503, { ok: ready(), mode: mode(), storage: useGist() ? 'gist' : 'file' });
+  if (url.pathname === '/icon.png') { res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=86400' }); return res.end(fs.readFileSync(path.join(__dirname, 'icon.png'))); }
+  if (url.pathname === '/manifest.json') { res.writeHead(200, { 'Content-Type': 'application/manifest+json' }); return res.end(JSON.stringify({ name: 'ГрибСвязь', short_name: 'ГрибСвязь', start_url: '/', display: 'standalone', background_color: '#0B1311', theme_color: '#0B1311', icons: [192, 512].map(n => ({ src: '/icon.png', sizes: n + 'x' + n, type: 'image/png' })) })); }
   if (url.pathname === '/sw.js') { res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' }); return res.end(fs.readFileSync(path.join(__dirname, 'sw.js'))); }
   if (url.pathname === '/' || url.pathname === '/index.html') {
     try {
