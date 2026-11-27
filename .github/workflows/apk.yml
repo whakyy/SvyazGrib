@@ -28,6 +28,15 @@ jobs:
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#</manifest>#<uses-permission android:name="android.permission.CAMERA"/><uses-permission android:name="android.permission.RECORD_AUDIO"/><uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/><uses-feature android:name="android.hardware.camera" android:required="false"/></manifest>#' $M
           grep -q RECORD_AUDIO $M
+          # значок приложения из icon.png
+          R=android/app/src/main/res
+          for p in mdpi:48:108 hdpi:72:162 xhdpi:96:216 xxhdpi:144:324 xxxhdpi:192:432; do
+            IFS=: read d s f <<< "$p"
+            convert icon.png -resize ${s}x${s} $R/mipmap-$d/ic_launcher.png
+            cp $R/mipmap-$d/ic_launcher.png $R/mipmap-$d/ic_launcher_round.png
+            convert icon.png -resize $((f*72/108))x$((f*72/108)) -background '#0f1b35' -gravity center -extent ${f}x${f} $R/mipmap-$d/ic_launcher_foreground.png
+          done
+          sed -i 's/#FFFFFF/#0f1b35/I' $R/values/ic_launcher_background.xml
       - name: Build APK
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug
