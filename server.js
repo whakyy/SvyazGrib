@@ -144,6 +144,9 @@ function tgNotify(to, from) {
   tgSend(chat, '🍄 Новое сообщение в ГрибСвязь от ' + (from.name || 'друга') + '\nОтключить уведомления: /off');
 }
 
+const LINES = ['012', '345', '678', '036', '147', '258', '048', '246'];
+const winner = b => { for (const l of LINES) { const [x, y, z] = l.split('').map(i => b[i]); if (x !== '.' && x === y && y === z) return x; } return ''; };
+
 // ---------- HTTP ----------
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Authorization, Content-Type', 'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS' };
 function out(res, code, obj) { res.writeHead(code, Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, CORS)); res.end(JSON.stringify(obj)); }
@@ -225,7 +228,7 @@ const ROUTES = {
     addContact(me.id, u.id); out(res, 200, { ok: true });
   },
   async 'POST /api/send'(req, res, url, me, b) {
-    const to = db.users[b.to], text = clean(b.text, 4000);
+    const to = db.users[b.to], text = b.game === 'xo' ? '🎮 Крестики-нолики' : clean(b.text, 4000);
     if (!to || to.id === me.id || !text) return fail(res, 400, 'bad_request');
     const cid = clean(b.cid, 40), dup = cid && db.msgs.find(m => m.from === me.id && m.to === to.id && m.cid === cid);
     if (dup) return out(res, 200, { msg: dup });
@@ -235,7 +238,8 @@ const ROUTES = {
     // подпись «Переслано от» берём из исходного сообщения, чтобы её нельзя было подделать
     const src = b.fwd && db.msgs.find(x => x.id === b.fwd && (x.from === me.id || x.to === me.id));
     if (src) m.fwd = src.fwd || (db.users[src.from] || {}).name || 'Без имени';
-    if (b.secret || (src && src.secret)) m.secret = true;
+    if (b.game === 'xo') m.game = { board: '.........' };
+    else if (b.secret || (src && src.secret)) m.secret = true;
     db.msgs.push(m); addContact(me.id, to.id); save();
     push(to.id, { type: 'message', msg: m }); push(me.id, { type: 'message', msg: m });
     tgNotify(to, me);
@@ -244,7 +248,7 @@ const ROUTES = {
   async 'POST /api/edit'(req, res, url, me, b) {
     const m = db.msgs.find(x => x.id === b.id && x.from === me.id), text = clean(b.text, 4000);
     if (!m) return fail(res, 404, 'not_found');
-    if (!text || m.fwd) return fail(res, 400, 'bad_request');
+    if (!text || m.fwd || m.game) return fail(res, 400, 'bad_request');
     if (!hit('edt:' + me.id, 60, 6e4)) return fail(res, 429, 'too_fast');
     if (text !== m.text) {
       m.text = text; m.edited = now(); save();
@@ -271,6 +275,16 @@ const ROUTES = {
   async 'POST /api/logout'(req, res, url) {
     const h = req.headers.authorization || '', t = h.startsWith('Bearer ') ? h.slice(7) : '';
     delete db.sessions[sha(t)]; save(); out(res, 200, { ok: true });
+  },
+  async 'POST /api/move'(req, res, url, me, b) {
+    const m = db.msgs.find(x => x.id === b.id && x.game && (x.from === me.id || x.to === me.id));
+    if (!m) return fail(res, 404, 'not_found');
+    // крестики у того, кто позвал; первым ходит соперник
+    const bd = m.game.board, n = bd.split('').filter(c => c !== '.').length, turn = n % 2 ? m.from : m.to, i = b.cell;
+    if (winner(bd) || turn !== me.id || !Number.isInteger(i) || i < 0 || i > 8 || bd[i] !== '.') return fail(res, 400, 'bad_move');
+    m.game.board = bd.slice(0, i) + (me.id === m.from ? 'x' : 'o') + bd.slice(i + 1); save();
+    const ev = { type: 'game', id: m.id, game: m.game }; push(m.from, ev); push(m.to, ev);
+    out(res, 200, { game: m.game });
   },
   async 'POST /api/nudge'(req, res, url, me, b) {
     const to = db.users[b.to];

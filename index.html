@@ -299,6 +299,17 @@ textarea.inp{resize:none;min-height:76px}
 @keyframes rainf{to{transform:translateY(calc(100vh + 80px)) rotate(280deg)}}
 .quake{animation:quake .7s}
 @keyframes quake{10%,50%,90%{transform:translate(-12px,4px)}30%,70%{transform:translate(12px,-4px)}}
+/* грибница и игра */
+.myco{display:flex;gap:14px;align-items:center;padding:14px 16px;border-radius:22px;background:color-mix(in srgb,var(--ok) 14%,transparent);border:1px solid color-mix(in srgb,var(--ok) 35%,transparent)}
+.myco>i{font-style:normal;font-size:38px;line-height:1}
+.myco>span{flex:1;display:flex;flex-direction:column;gap:2px}
+.myco small{color:var(--muted)}
+.myco .pbar{background:color-mix(in srgb,var(--ok) 22%,transparent)}
+.myco .pbar u{background:var(--ok);box-shadow:none}
+.fire{font-size:13px;font-weight:700;margin-left:4px}
+.xo{display:grid;grid-template-columns:repeat(3,56px);gap:5px;margin:7px 0 3px}
+.xo button{height:56px;border-radius:12px;background:color-mix(in srgb,currentColor 14%,transparent);font-size:28px;text-align:center}
+.xo button[disabled]{cursor:default}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 /* режим «Стекло»: ещё прозрачнее, поверх северного сияния */
 html[data-glass] body{background:radial-gradient(70% 55% at 6% 4%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 70%),radial-gradient(60% 50% at 98% 26%,color-mix(in srgb,var(--warm) 45%,transparent),transparent 70%),radial-gradient(75% 55% at 45% 100%,color-mix(in srgb,#7C5CFF 42%,transparent),transparent 70%),var(--bg);background-attachment:fixed}
@@ -486,7 +497,7 @@ async function api(path,method,body){
   if(!r.ok){if(r.status===401&&TOK&&S)forceLogout();throw Object.assign({status:r.status,code:j.error||'error'},j)}
   return j;
 }
-const ERR={network:'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',bad_phone:'Проверьте номер телефона',too_fast:'Подождите немного перед повторной попыткой',too_many:'Слишком много попыток, попробуйте позже',send_failed:'Не получилось отправить код. Попробуйте позже.',wrong_code:'Неверный код, попробуйте ещё раз',no_code:'Код устарел. Запросите новый.',bad_name:'Введите имя',bad_username:'Имя пользователя: 3–20 латинских букв, цифр или _',username_taken:'Это имя пользователя уже занято',not_found:'Не нашли такого человека в ГрибСвязь'};
+const ERR={network:'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',bad_phone:'Проверьте номер телефона',too_fast:'Подождите немного перед повторной попыткой',too_many:'Слишком много попыток, попробуйте позже',send_failed:'Не получилось отправить код. Попробуйте позже.',wrong_code:'Неверный код, попробуйте ещё раз',no_code:'Код устарел. Запросите новый.',bad_name:'Введите имя',bad_move:'Сейчас так сходить нельзя',bad_username:'Имя пользователя: 3–20 латинских букв, цифр или _',username_taken:'Это имя пользователя уже занято',not_found:'Не нашли такого человека в ГрибСвязь'};
 const errText=e=>ERR[e&&e.code]||'Что-то пошло не так. Попробуйте ещё раз.';
 const fmtMe=p=>'+7 '+fmtPhone(String(p||'').slice(1));
 function seenText(ts){
@@ -501,7 +512,7 @@ function mapMe(u,old){
   if(!tr&&old&&old.track&&old.track.key==='custom')tr=old.track;
   return{id:u.id,name:u.name,username:u.username||'',phone:fmtMe(u.phone),bio:u.bio||'',photo:u.photo||'',banner:u.banner||'',look:u.look||{},mood:u.mood||'',track:tr};
 }
-const mapMsg=m=>({id:m.id,edited:m.edited||0,fwd:m.fwd||null,from:m.from===S.me.id?'me':m.from,text:m.text,ts:m.ts,status:m.status,reply:m.reply||null,react:m.react||null,secret:!!m.secret});
+const mapMsg=m=>({id:m.id,edited:m.edited||0,fwd:m.fwd||null,from:m.from===S.me.id?'me':m.from,text:m.text,ts:m.ts,status:m.status,reply:m.reply||null,react:m.react||null,secret:!!m.secret,game:m.game||null});
 function emptyState(me){return{tok:TOK,me:me,contacts:[],chats:{},unread:{},tab:'chats',open:null,theme:'system'}}
 function recountUnread(){
   S.unread={};
@@ -595,6 +606,8 @@ function onEvent(ev){
     }
     save();refresh();if(S.open===peer)renderMsgs(true);
     if(!mine&&!m.secret&&S.open===peer&&!document.hidden)emojiRain(m.text);
+  }else if(ev.type==='game'){
+    const m=findMsg(ev.id);if(m){m.game=ev.game;save();refresh()}
   }else if(ev.type==='nudge'){
     const c=cById(ev.from),n=c?c.name:'Друг';quake();toast('👊 '+n+': тук-тук!');if(document.hidden)notifyMsg(n,'👊 Тук-тук!');
   }else if(ev.type==='read'){
@@ -747,6 +760,26 @@ function emojiRain(t){
 }
 function quake(){const r=$('#root');r.classList.remove('quake');void r.offsetWidth;r.classList.add('quake');setTimeout(()=>r.classList.remove('quake'),750);try{navigator.vibrate&&navigator.vibrate([200,80,200,80,300])}catch(x){}}
 let SECRET=false,SHOWN={};
+// грибница: сколько дней подряд писали оба; вчерашняя серия ещё не сгорела
+function streak(id){
+  const d={};(S.chats[id]||[]).forEach(m=>{const k=dayDiff(m.ts);d[k]=(d[k]||0)|(m.from==='me'?1:2)});
+  let i=d[0]===3?0:1,n=0;while(d[i]===3){n++;i++}return n;
+}
+const STAGES=[[0,'🌱','Споры'],[2,'🍄','Грибочек'],[7,'🍄🍄','Семейка'],[14,'🌳🍄','Лесная поляна'],[30,'👑🍄','Царь-гриб']];
+function mycoHtml(id){
+  const n=streak(id);let k=0;STAGES.forEach((s,i)=>{if(n>=s[0])k=i});
+  const s=STAGES[k],nx=STAGES[k+1];
+  return '<div class="myco"><i>'+s[1]+'</i><span><b>Грибница: '+s[2]+'</b><small>Дней подряд: '+n+(nx?' · до «'+nx[2]+'»: '+(nx[0]-n):' · максимум!')+'</small><i class="pbar"><u style="width:'+(nx?Math.round(n/nx[0]*100):100)+'%"></u></i></span></div>';
+}
+const winner=b=>{for(const l of ['012','345','678','036','147','258','048','246']){const [x,y,z]=l.split('').map(i=>b[i]);if(x!=='.'&&x===y&&y===z)return x}return ''};
+function gameHtml(m,c){
+  const b=m.game.board,mine=m.from==='me'?'x':'o',n=b.split('').filter(x=>x!=='.').length,my=(n%2?'x':'o')===mine,w=winner(b),end=w||n===9;
+  const st=w?(w===mine?'Вы победили 🏆':'Победил(а) '+c.name):n===9?'Ничья 🤝':my?'Ваш ход':'Ход соперника';
+  return '<b>Крестики-нолики</b><div class="xo">'+b.split('').map((v,i)=>'<button type="button" data-act="move" data-id="'+esc(m.id)+'" data-i="'+i+'" aria-label="Клетка '+(i+1)+'"'+(end||!my||v!=='.'?' disabled':'')+'>'+(v==='x'?'❌':v==='o'?'⭕':'')+'</button>').join('')+'</div><small>'+esc(st)+'</small>';
+}
+async function startGame(to){
+  try{const r=await api('/api/send','POST',{to,game:'xo',cid:'g'+uid()});if(!S)return;if(!findMsg(r.msg.id))(S.chats[to]=S.chats[to]||[]).push(mapMsg(r.msg));save();closeSheet();refresh();renderMsgs(true)}catch(e){toast(errText(e))}
+}
 const preview=m=>m.secret?'🙈 Скрытое сообщение':m.text;
 function musicCard(tr,own){
   if(!tr)return own?'<button class="music none" data-act="pick-track">'+ic('music')+'<span>Добавить музыку в профиль</span></button>':'';
@@ -761,7 +794,7 @@ function rowHtml(c,mode){
     last=TYP[c.id]?'<em>печатает…</em>':dr?'<em class="dr">Черновик:</em> '+esc(dr):(m?(m.from==='me'?'<em>Вы:</em> ':'')+esc(preview(m)):'Нет сообщений');
     time=m?listTime(m.ts):'';
   }
-  return '<button class="row'+(S.open===c.id?' sel':'')+'" data-act="open" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id)+(c.online?'<i class="dot"></i>':'')+'</span><span class="r-body"><span class="r-top"><b>'+nameHtml(c)+'</b>'+(mode!=='contact'&&isPinned(c.id)?ic('pin','pin'):'')+(time?'<time>'+time+'</time>':'')+'</span><span class="r-bot"><span class="r-last">'+last+'</span>'+(u&&mode!=='contact'?'<span class="badge">'+u+'</span>':'')+'</span></span></button>';
+  return '<button class="row'+(S.open===c.id?' sel':'')+'" data-act="open" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id)+(c.online?'<i class="dot"></i>':'')+'</span><span class="r-body"><span class="r-top"><b>'+nameHtml(c)+(streak(c.id)>1?'<span class="fire">🍄'+streak(c.id)+'</span>':'')+'</b>'+(mode!=='contact'&&isPinned(c.id)?ic('pin','pin'):'')+(time?'<time>'+time+'</time>':'')+'</span><span class="r-bot"><span class="r-last">'+last+'</span>'+(u&&mode!=='contact'?'<span class="badge">'+u+'</span>':'')+'</span></span></button>';
 }
 function nowHtml(){
   const a=S.contacts.filter(c=>c.track&&TRACKS[c.track]);
@@ -860,7 +893,7 @@ function msgHtml(m,c,g){
   let q='';
   if(m.reply){const r=(S.chats[c.id]||[]).find(x=>x.id===m.reply);if(r)q='<div class="quote" data-act="jump" data-id="'+esc(r.id)+'"><b>'+esc(r.from==='me'?'Вы':c.name)+'</b><span>'+esc(preview(r))+'</span></div>'}
   const tick=out?(m.status==='read'?ic('checks'):m.status==='sending'?'<span title="Отправится, когда появится связь">🕓</span>':m.status==='failed'?'<b style="color:#ffd0d0">!</b>':ic('check')):'';
-  return '<div class="msg '+(out?'out':'in')+(g?' g':'')+'" data-mid="'+esc(m.id)+'"><div role="button" tabindex="0" class="bub'+(m.id===NEWID?' new':'')+'" data-act="msg" data-id="'+m.id+'">'+(m.fwd?'<span class="fwd">Переслано от '+esc(m.fwd)+'</span>':'')+q+'<span class="txt'+(m.secret&&!SHOWN[m.id]?' sec-txt':'')+'">'+linkify(m.text)+'</span><span class="meta">'+(m.edited?'изменено ':'')+fmtT(m.ts)+tick+'</span></div>'+(m.react?'<span class="react">'+esc(m.react)+'</span>':'')+'</div>';
+  return '<div class="msg '+(out?'out':'in')+(g?' g':'')+'" data-mid="'+esc(m.id)+'"><div role="button" tabindex="0" class="bub'+(m.id===NEWID?' new':'')+'" data-act="msg" data-id="'+m.id+'">'+(m.fwd?'<span class="fwd">Переслано от '+esc(m.fwd)+'</span>':'')+q+'<span class="txt'+(m.secret&&!SHOWN[m.id]?' sec-txt':'')+'">'+(m.game?gameHtml(m,c):linkify(m.text))+'</span><span class="meta">'+(m.edited?'изменено ':'')+fmtT(m.ts)+tick+'</span></div>'+(m.react?'<span class="react">'+esc(m.react)+'</span>':'')+'</div>';
 }
 function renderMsgs(stick){
   const el=$('#msgs');if(!el||!S.open)return;const c=cById(S.open);
@@ -932,12 +965,12 @@ function sheet(html){
 function closeSheet(){const h=$('#sheets');if(!h)return;h.classList.remove('on');setTimeout(()=>{if(!h.classList.contains('on'))h.innerHTML=''},320)}
 function msgSheet(id){
   const m=(S.chats[S.open]||[]).find(x=>x.id===id);if(!m)return;
-  sheet('<div class="reacts">'+['❤️','👍','😂','😮','🙏'].map(e=>'<button data-act="react" data-id="'+id+'" data-e="'+e+'" aria-label="Реакция">'+e+'</button>').join('')+'</div><div class="menu"><button class="mrow" data-act="reply" data-id="'+id+'">'+ic('reply')+'<span>Ответить</span></button><button class="mrow" data-act="copy" data-id="'+id+'">'+ic('copy')+'<span>Копировать</span></button><button class="mrow" data-act="forward" data-id="'+id+'"'+(ONLINE&&isTemp(id)?' hidden':'')+'>'+ic('forward')+'<span>Переслать</span></button>'+(m.from==='me'&&!m.fwd&&!(ONLINE&&isTemp(id))?'<button class="mrow" data-act="edit-msg" data-id="'+id+'">'+ic('edit')+'<span>Изменить</span></button>':'')+(!ONLINE||m.from==='me'?'<button class="mrow danger" data-act="del" data-id="'+id+'">'+ic('trash')+'<span>Удалить</span></button>':'')+'</div>');
+  sheet('<div class="reacts">'+['❤️','👍','😂','😮','🙏'].map(e=>'<button data-act="react" data-id="'+id+'" data-e="'+e+'" aria-label="Реакция">'+e+'</button>').join('')+'</div><div class="menu"><button class="mrow" data-act="reply" data-id="'+id+'">'+ic('reply')+'<span>Ответить</span></button><button class="mrow" data-act="copy" data-id="'+id+'">'+ic('copy')+'<span>Копировать</span></button><button class="mrow" data-act="forward" data-id="'+id+'"'+((ONLINE&&isTemp(id))||m.game?' hidden':'')+'>'+ic('forward')+'<span>Переслать</span></button>'+(m.from==='me'&&!m.fwd&&!m.game&&!(ONLINE&&isTemp(id))?'<button class="mrow" data-act="edit-msg" data-id="'+id+'">'+ic('edit')+'<span>Изменить</span></button>':'')+(!ONLINE||m.from==='me'?'<button class="mrow danger" data-act="del" data-id="'+id+'">'+ic('trash')+'<span>Удалить</span></button>':'')+'</div>');
 }
 function cprofileSheet(id){
   const c=cById(id);if(!c)return;
   const tr=c.track?trkInfo(c.track):null;
-  sheet(heroHtml(c,c.id,statusText(c))+(ONLINE?'<button class="btn" data-act="nudge" data-id="'+esc(c.id)+'">👊 Тук-тук</button>':'')+(c.bio?'<div class="bio"><small>О себе</small>'+esc(c.bio)+'</div>':'')+(c.phone?'<div class="bio"><small>Телефон</small>'+esc(c.phone)+'</div>':'')+(c.username?'<div class="bio"><small>Имя пользователя</small>@'+esc(c.username)+'</div>':'')+(tr?'<div class="bio" style="background:none;padding:0"><small style="padding:0 2px 6px">Музыка в профиле</small>'+musicCard(tr,false)+'</div>':'')+'<button class="btn ghost" data-act="pin" data-id="'+esc(c.id)+'">'+ic('pin')+(isPinned(c.id)?'Открепить чат':'Закрепить чат')+'</button><button class="btn ghost" data-act="close">Закрыть</button>');
+  sheet(heroHtml(c,c.id,statusText(c))+(ONLINE?'<button class="btn" data-act="nudge" data-id="'+esc(c.id)+'">👊 Тук-тук</button><button class="btn ghost" data-act="game" data-id="'+esc(c.id)+'">🎮 Сыграть в крестики-нолики</button>':'')+mycoHtml(c.id)+(c.bio?'<div class="bio"><small>О себе</small>'+esc(c.bio)+'</div>':'')+(c.phone?'<div class="bio"><small>Телефон</small>'+esc(c.phone)+'</div>':'')+(c.username?'<div class="bio"><small>Имя пользователя</small>@'+esc(c.username)+'</div>':'')+(tr?'<div class="bio" style="background:none;padding:0"><small style="padding:0 2px 6px">Музыка в профиле</small>'+musicCard(tr,false)+'</div>':'')+'<button class="btn ghost" data-act="pin" data-id="'+esc(c.id)+'">'+ic('pin')+(isPinned(c.id)?'Открепить чат':'Закрепить чат')+'</button><button class="btn ghost" data-act="close">Закрыть</button>');
 }
 let NEWPHOTO;
 function showPhoto(){$('#ephv').innerHTML=avatar(S.me.name,S.me.id,'xl',NEWPHOTO)}
@@ -997,6 +1030,8 @@ document.addEventListener('click',e=>{
     case 'msg':{const m=(S.chats[S.open]||[]).find(x=>x.id===id);if(m&&m.secret&&!SHOWN[id]){SHOWN[id]=1;const x=t.querySelector('.sec-txt');if(x)x.classList.remove('sec-txt')}else msgSheet(id);break}
     case 'secret':SECRET=!SECRET;t.classList.toggle('on',SECRET);toast(SECRET?'Следующее сообщение будет скрытым':'Обычное сообщение');break;
     case 'design':designSheet();break;
+    case 'game':startGame(id);break;
+    case 'move':api('/api/move','POST',{id,cell:+t.dataset.i}).then(r=>{const m=S&&findMsg(id);if(m){m.game=r.game;save();refresh()}},er=>toast(errText(er)));break;
     case 'look':if(DES){DES.look[t.dataset.k]=t.dataset.v;if(t.dataset.k==='b')DES.banner='';const sh=t.closest('.sheet'),y=sh.scrollTop;redrawDesign();sh.scrollTop=y}break;
     case 'no-banner':if(DES){DES.banner='';redrawDesign()}break;
     case 'save-design':saveDesign();break;
