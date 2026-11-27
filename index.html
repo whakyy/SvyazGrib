@@ -259,6 +259,46 @@ textarea.inp{resize:none;min-height:76px}
 .tg::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.35);transition:transform .22s cubic-bezier(.3,1.4,.5,1)}
 .tg.on{background:var(--accent);box-shadow:0 0 14px -2px color-mix(in srgb,var(--accent) 80%,transparent)}
 .tg.on::after{transform:translateX(18px)}
+/* оформление профиля */
+.cover{position:relative;overflow:hidden;height:150px;background-size:cover;background-position:center}
+.cover.b-aurora,.cover.b-sunset,.cover.b-space,.cover.b-forest,.cover.b-candy,.cover.b-gold{background-size:300% 300%;animation:pan 9s ease-in-out infinite alternate}
+.b-aurora{background-image:linear-gradient(120deg,#04231f,#19b394,#7c5cff,#0b1b3a,#34d399)}
+.b-sunset{background-image:linear-gradient(120deg,#3b0d4f,#f23d57,#ff9a3c,#ffd36b,#7a1f5c)}
+.b-space{background-image:radial-gradient(1.5px 1.5px at 20% 30%,#fff,transparent),radial-gradient(1px 1px at 70% 20%,#fff,transparent),radial-gradient(2px 2px at 85% 70%,#fff,transparent),radial-gradient(1px 1px at 40% 75%,#fff,transparent),linear-gradient(120deg,#05030f,#2b1a6b,#0a1033,#5b2a86,#05030f)}
+.b-forest{background-image:linear-gradient(120deg,#06140d,#2f7a52,#0f3323,#8cc66a,#123b2a)}
+.b-candy{background-image:linear-gradient(120deg,#ff8ac6,#a78bfa,#60e0ff,#ffd1ec,#ff6fae)}
+.b-gold{background-image:linear-gradient(120deg,#3a2600,#c98a10,#ffe89a,#a86b00,#ffd35c)}
+@keyframes pan{from{background-position:0 0}to{background-position:100% 100%}}
+.cover i{position:absolute;top:-24px;font-style:normal;font-size:15px;line-height:1;animation:fall 5s linear infinite;pointer-events:none}
+@keyframes fall{to{transform:translate(26px,200px) rotate(200deg)}}
+.pcard{display:flex;flex-direction:column;flex:none}
+.pcard>.cover+.hero{margin-top:-58px;position:relative;pointer-events:none}
+.frame{position:relative;display:grid;border-radius:50%;padding:5px;background:var(--bg2)}
+.frame .av.xl{border:4px solid var(--bg2);position:relative}
+.cover+.hero .frame .av.xl{border:4px solid var(--bg2)}
+.frame[class*=f-]::before{content:"";position:absolute;inset:0;border-radius:50%;animation:spin 3s linear infinite}
+.f-fire::before{background:conic-gradient(#ff3d00,#ffc400,#ff0054,#ff3d00)}
+.f-gold::before{background:conic-gradient(#8a5a00,#ffe89a,#c98a10,#fff6cf,#8a5a00)}
+.f-rainbow::before{background:conic-gradient(red,orange,yellow,lime,cyan,blue,violet,red)}
+.f-neon::before{background:conic-gradient(#00f0ff,transparent 35%,#ff2bd6,transparent 85%,#00f0ff)}
+.f-fire,.f-neon{filter:drop-shadow(0 0 10px #ff3d7f88)}
+[class*=n-]{background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.n-fire{background-image:linear-gradient(90deg,#ff3d00,#ffab00,#ff0054)}
+.n-gold{background-image:linear-gradient(90deg,#c98a10,#f2c94c,#b87900)}
+.n-ocean{background-image:linear-gradient(90deg,#0ea5e9,#14b8a6,#6366f1)}
+.n-candy{background-image:linear-gradient(90deg,#ec4899,#8b5cf6,#06b6d4)}
+.mood{align-self:center;margin-top:6px;padding:6px 14px;border-radius:999px;background:var(--glass);border:1px solid var(--hair);font-size:14px;max-width:100%;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{padding:8px 13px;border-radius:999px;font-size:13px;font-weight:650;background:color-mix(in srgb,var(--fg) 8%,transparent)}
+.chips button.on{background:var(--fg);color:var(--bg)}
+/* скрытые сообщения, тук-тук, дождь из эмодзи */
+.txt.sec-txt{filter:blur(7px);user-select:none;-webkit-user-select:none}
+.txt.sec-txt a{pointer-events:none}
+.secb.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.rain{position:fixed;top:-40px;z-index:80;pointer-events:none;font-style:normal;animation:rainf 2.4s ease-in forwards}
+@keyframes rainf{to{transform:translateY(calc(100vh + 80px)) rotate(280deg)}}
+.quake{animation:quake .7s}
+@keyframes quake{10%,50%,90%{transform:translate(-12px,4px)}30%,70%{transform:translate(12px,-4px)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 /* режим «Стекло»: ещё прозрачнее, поверх северного сияния */
 html[data-glass] body{background:radial-gradient(70% 55% at 6% 4%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 70%),radial-gradient(60% 50% at 98% 26%,color-mix(in srgb,var(--warm) 45%,transparent),transparent 70%),radial-gradient(75% 55% at 45% 100%,color-mix(in srgb,#7C5CFF 42%,transparent),transparent 70%),var(--bg);background-attachment:fixed}
@@ -455,13 +495,13 @@ function seenText(ts){
   if(m<1)return 'только что';if(m<60)return m+' мин назад';
   const d=dayDiff(ts);return d===0?'сегодня в '+fmtT(ts):(d===1?'вчера в '+fmtT(ts):new Date(ts).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}));
 }
-const mapUser=u=>({id:u.id,name:u.name||'Без имени',phone:'',username:u.username||'',bio:u.bio||'',photo:u.photo||'',track:u.track&&TRACKS[u.track.key]?u.track.key:null,online:!!u.online,seen:u.seen?'был(а) '+seenText(u.seen):''});
+const mapUser=u=>({id:u.id,name:u.name||'Без имени',phone:'',username:u.username||'',bio:u.bio||'',photo:u.photo||'',banner:u.banner||'',look:u.look||{},mood:u.mood||'',track:u.track&&TRACKS[u.track.key]?u.track.key:null,online:!!u.online,seen:u.seen?'был(а) '+seenText(u.seen):''});
 function mapMe(u,old){
   let tr=u.track&&TRACKS[u.track.key]?Object.assign({key:u.track.key},{title:TRACKS[u.track.key].t,artist:TRACKS[u.track.key].a}):null;
   if(!tr&&old&&old.track&&old.track.key==='custom')tr=old.track;
-  return{id:u.id,name:u.name,username:u.username||'',phone:fmtMe(u.phone),bio:u.bio||'',photo:u.photo||'',track:tr};
+  return{id:u.id,name:u.name,username:u.username||'',phone:fmtMe(u.phone),bio:u.bio||'',photo:u.photo||'',banner:u.banner||'',look:u.look||{},mood:u.mood||'',track:tr};
 }
-const mapMsg=m=>({id:m.id,edited:m.edited||0,fwd:m.fwd||null,from:m.from===S.me.id?'me':m.from,text:m.text,ts:m.ts,status:m.status,reply:m.reply||null,react:m.react||null});
+const mapMsg=m=>({id:m.id,edited:m.edited||0,fwd:m.fwd||null,from:m.from===S.me.id?'me':m.from,text:m.text,ts:m.ts,status:m.status,reply:m.reply||null,react:m.react||null,secret:!!m.secret});
 function emptyState(me){return{tok:TOK,me:me,contacts:[],chats:{},unread:{},tab:'chats',open:null,theme:'system'}}
 function recountUnread(){
   S.unread={};
@@ -503,7 +543,7 @@ async function flushQueue(){
     const cid=om.id;
     if(!(me.chats[to]||[]).some(m=>m.id===cid))continue; // удалили, пока ждало в очереди
     try{
-      const r=await api('/api/send','POST',{to,text:om.text,reply:om.reply,fwd:om.fwdId,cid});
+      const r=await api('/api/send','POST',{to,text:om.text,reply:om.reply,fwd:om.fwdId,secret:om.secret,cid});
       om.id=r.msg.id;om.ts=r.msg.ts;om.fwd=r.msg.fwd||null;if(om.status==='sending')om.status=r.msg.status;
       // пока шёл запрос, sync мог пересобрать чат: обновляем и новую копию
       if(S===me)(S.chats[to]||[]).forEach(m=>{if(m.id===cid)Object.assign(m,om)});
@@ -551,9 +591,12 @@ function onEvent(ev){
     const m=mapMsg(sm);(S.chats[peer]=S.chats[peer]||[]).push(m);NEWID=m.id;TYP[peer]=false;clearTimeout(TYPT[peer]);LASTIN[peer]=Date.now();
     if(!mine){
       if(S.open===peer&&!document.hidden){m.status='read';api('/api/read','POST',{with:peer}).catch(()=>{})}
-      else{S.unread[peer]=(S.unread[peer]||0)+1;try{navigator.vibrate&&navigator.vibrate(30)}catch(x){}if(document.hidden){const c=cById(peer);notifyMsg(c?c.name:'ГрибСвязь',m.text)}}
+      else{S.unread[peer]=(S.unread[peer]||0)+1;try{navigator.vibrate&&navigator.vibrate(30)}catch(x){}if(document.hidden){const c=cById(peer);notifyMsg(c?c.name:'ГрибСвязь',preview(m))}}
     }
     save();refresh();if(S.open===peer)renderMsgs(true);
+    if(!mine&&!m.secret&&S.open===peer&&!document.hidden)emojiRain(m.text);
+  }else if(ev.type==='nudge'){
+    const c=cById(ev.from),n=c?c.name:'Друг';quake();toast('👊 '+n+': тук-тук!');if(document.hidden)notifyMsg(n,'👊 Тук-тук!');
   }else if(ev.type==='read'){
     (S.chats[ev.by]||[]).forEach(m=>{if(ev.ids.includes(m.id))m.status='read'});save();refresh();
   }else if(ev.type==='edit'){
@@ -666,6 +709,45 @@ function renderAuth(step){
 const cById=id=>S.contacts.find(c=>c.id===id);
 const lastMsg=id=>{const a=S.chats[id]||[];return a[a.length-1]};
 const statusText=c=>TYP[c.id]?'печатает…':(c.online?'в сети':(c.seen||'был(а) недавно'));
+const LOOKS={b:['Баннер',{'':'Обычный',aurora:'Сияние',sunset:'Закат',space:'Космос',forest:'Лес',candy:'Конфета',gold:'Золото'}],f:['Рамка аватара',{'':'Нет',fire:'Огонь',gold:'Золото',rainbow:'Радуга',neon:'Неон'}],n:['Цвет имени',{'':'Обычный',fire:'Огонь',gold:'Золото',ocean:'Океан',candy:'Конфета'}],x:['Эффект на баннере',{'':'Нет',spores:'✨ Споры',hearts:'💖 Сердца',snow:'❄️ Снег',shrooms:'🍄 Грибы'}]};
+const FXE={spores:'✨',hearts:'💖',snow:'❄️',shrooms:'🍄'};
+const okImg=s=>/^data:image\/jpeg;base64,[A-Za-z0-9+\/]+=*$/.test(s||'');
+const lk=(p,k)=>{const v=p&&p.look&&p.look[k];return v&&Object.prototype.hasOwnProperty.call(LOOKS[k][1],v)?v:''};
+const nameHtml=(p,n)=>'<span'+(lk(p,'n')?' class="n-'+lk(p,'n')+'"':'')+'>'+esc(n===undefined?p.name:n)+'</span>';
+function heroHtml(p,id,sub){
+  const img=okImg(p.banner)?p.banner:'',b=lk(p,'b'),x=lk(p,'x'),f=lk(p,'f');
+  const parts=x?Array.from({length:12},(_,i)=>'<i style="left:'+(i*8+2)+'%;animation-delay:-'+(i*1.7%5).toFixed(1)+'s">'+FXE[x]+'</i>').join(''):'';
+  return '<div class="pcard"><div class="cover'+(!img&&b?' b-'+b:'')+'"'+(img?' style="background-image:url('+img+')"':'')+'>'+parts+'</div><div class="hero"><span class="frame'+(f?' f-'+f:'')+'">'+avatar(p.name,id,'xl')+'</span><h3>'+nameHtml(p)+'</h3><div class="sub">'+esc(sub)+'</div>'+(p.mood?'<div class="mood">'+esc(p.mood)+'</div>':'')+'</div></div>';
+}
+let DES=null;
+function designBody(){
+  return heroHtml(Object.assign({},S.me,DES),S.me.phone,'так увидят друзья')+'<div class="fld"><label for="md">Настроение</label><input id="md" class="inp" maxlength="60" placeholder="🔥 Играю, не отвлекать" value="'+esc(DES.mood)+'"></div><label class="btn ghost" for="bnf">Своя картинка на баннер</label><input id="bnf" type="file" accept="image/*" hidden>'+(DES.banner?'<button class="btn ghost" data-act="no-banner">Убрать картинку</button>':'')+Object.keys(LOOKS).map(k=>'<div class="fld"><label>'+LOOKS[k][0]+'</label><div class="chips">'+Object.entries(LOOKS[k][1]).map(([v,t])=>'<button type="button" data-act="look" data-k="'+k+'" data-v="'+v+'" class="'+((DES.look[k]||'')===v?'on':'')+'">'+t+'</button>').join('')+'</div></div>').join('')+'<div class="err" id="derr"></div><button class="btn" id="dsave" data-act="save-design">Сохранить</button>';
+}
+function designSheet(){DES={banner:S.me.banner||'',look:Object.assign({},S.me.look),mood:S.me.mood||''};sheet('<h3>Оформление профиля</h3><div id="des" class="fld" style="gap:12px">'+designBody()+'</div>')}
+function redrawDesign(){const d=$('#des');if(d&&DES)d.innerHTML=designBody()}
+// баннер обрезается 3:1 и сжимается на телефоне
+function pickBanner(file){
+  const url=URL.createObjectURL(file),img=new Image();
+  img.onload=()=>{const c=document.createElement('canvas');let w=720,q=.82,out;
+    const r=3,sw=Math.min(img.width,img.height*r),sh=sw/r;
+    do{c.width=w;c.height=Math.round(w/r);c.getContext('2d').drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,c.width,c.height);out=c.toDataURL('image/jpeg',q);if(q>.5)q-=.08;else w-=80}while(out.length>48000&&w>=240);
+    URL.revokeObjectURL(url);if(DES){DES.banner=out;redrawDesign()}};
+  img.onerror=()=>{URL.revokeObjectURL(url);toast('Не удалось открыть фото')};
+  img.src=url;
+}
+async function saveDesign(){
+  const d={banner:DES.banner,look:DES.look,mood:DES.mood.trim()};
+  if(ONLINE)try{await api('/api/me','PUT',d)}catch(er){const e=$('#derr');if(e)e.textContent=errText(er);return}
+  if(!S)return;Object.assign(S.me,d);save();closeSheet();renderSide();toast('Профиль оформлен ✨');
+}
+const RAIN=['🍄','❤️','🎉','🔥','✨','❄️'];
+function emojiRain(t){
+  const e=String(t||'').trim();if(!RAIN.includes(e))return;
+  for(let i=0;i<28;i++){const n=document.createElement('i');n.className='rain';n.textContent=e;n.style.left=Math.random()*96+'vw';n.style.fontSize=18+Math.random()*22+'px';n.style.animationDelay=(Math.random()*.9).toFixed(2)+'s';document.body.appendChild(n);setTimeout(()=>n.remove(),3600)}
+}
+function quake(){const r=$('#root');r.classList.remove('quake');void r.offsetWidth;r.classList.add('quake');setTimeout(()=>r.classList.remove('quake'),750);try{navigator.vibrate&&navigator.vibrate([200,80,200,80,300])}catch(x){}}
+let SECRET=false,SHOWN={};
+const preview=m=>m.secret?'🙈 Скрытое сообщение':m.text;
 function musicCard(tr,own){
   if(!tr)return own?'<button class="music none" data-act="pick-track">'+ic('music')+'<span>Добавить музыку в профиль</span></button>':'';
   return '<div class="music" data-key="'+esc(tr.key)+'"><button class="mp-btn" data-act="play" data-key="'+esc(tr.key)+'" aria-label="Играть">'+ic('play','fill')+ic('pause','fill')+'</button><div class="mp-info"><b>'+esc(tr.title)+'</b><span>'+esc(tr.artist)+'</span><i class="pbar"><u></u></i></div><span class="eq"><i></i><i></i><i></i><i></i></span>'+(own?'<button class="ib" data-act="pick-track" aria-label="Сменить трек">'+ic('edit')+'</button>':'')+'</div>';
@@ -676,10 +758,10 @@ function rowHtml(c,mode){
   if(mode==='contact'){last=esc(statusText(c))}
   else{
     const dr=S.open!==c.id&&(DRAFT[c.id]||'').trim();
-    last=TYP[c.id]?'<em>печатает…</em>':dr?'<em class="dr">Черновик:</em> '+esc(dr):(m?(m.from==='me'?'<em>Вы:</em> ':'')+esc(m.text):'Нет сообщений');
+    last=TYP[c.id]?'<em>печатает…</em>':dr?'<em class="dr">Черновик:</em> '+esc(dr):(m?(m.from==='me'?'<em>Вы:</em> ':'')+esc(preview(m)):'Нет сообщений');
     time=m?listTime(m.ts):'';
   }
-  return '<button class="row'+(S.open===c.id?' sel':'')+'" data-act="open" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id)+(c.online?'<i class="dot"></i>':'')+'</span><span class="r-body"><span class="r-top"><b>'+esc(c.name)+'</b>'+(mode!=='contact'&&isPinned(c.id)?ic('pin','pin'):'')+(time?'<time>'+time+'</time>':'')+'</span><span class="r-bot"><span class="r-last">'+last+'</span>'+(u&&mode!=='contact'?'<span class="badge">'+u+'</span>':'')+'</span></span></button>';
+  return '<button class="row'+(S.open===c.id?' sel':'')+'" data-act="open" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id)+(c.online?'<i class="dot"></i>':'')+'</span><span class="r-body"><span class="r-top"><b>'+nameHtml(c)+'</b>'+(mode!=='contact'&&isPinned(c.id)?ic('pin','pin'):'')+(time?'<time>'+time+'</time>':'')+'</span><span class="r-bot"><span class="r-last">'+last+'</span>'+(u&&mode!=='contact'?'<span class="badge">'+u+'</span>':'')+'</span></span></button>';
 }
 function nowHtml(){
   const a=S.contacts.filter(c=>c.track&&TRACKS[c.track]);
@@ -701,7 +783,7 @@ function listHtml(){
 }
 function profHtml(){
   const m=S.me;
-  return '<div class="top"><h2>Профиль</h2><button class="ib" data-act="edit-prof" aria-label="Редактировать">'+ic('edit')+'</button></div><div class="prof"><div class="cover"></div><div class="hero">'+avatar(m.name,m.phone,'xl')+'<h3>'+esc(m.name)+'</h3><div class="sub">'+esc(m.phone)+(m.username?' · @'+esc(m.username):'')+'</div></div>'+(m.bio?'<div class="bio"><small>О себе</small>'+esc(m.bio)+'</div>':'')+musicCard(m.track,true)+'<div class="sec" style="padding:6px 4px 0">Настройки</div><div class="menu"><div class="mrow">'+ic('moon')+'<span>Тема</span><span class="seg">'+[['system','Авто'],['light','Светлая'],['dark','Тёмная']].map(([v,t])=>'<button data-act="theme" data-v="'+v+'" class="'+(S.theme===v?'on':'')+'">'+t+'</button>').join('')+'</span></div><button class="mrow" data-act="glass">'+ic('glass')+'<span>Стекло</span><i class="tg'+(S.glass?' on':'')+'"></i></button><div class="mrow">'+ic('drop')+'<span>Цвет</span></div><div class="sw">'+ACC.map((c,i)=>{const v=i?c:'';return '<button data-act="accent" data-v="'+v+'" class="'+((S.accent||'')===v?'on':'')+'" style="background:'+c+'" aria-label="Цвет"></button>'}).join('')+'</div>'+(ONLINE?'<button class="mrow" data-act="invite">'+ic('users')+'<span>Пригласить друзей</span></button>':'')+'<button class="mrow danger" data-act="logout">'+ic('logout')+'<span>Выйти</span></button></div></div>';
+  return '<div class="top"><h2>Профиль</h2><button class="ib" data-act="edit-prof" aria-label="Редактировать">'+ic('edit')+'</button></div><div class="prof">'+heroHtml(m,m.phone,m.phone+(m.username?' · @'+m.username:''))+'<button class="btn" data-act="design">'+ic('glass')+'Оформить профиль</button>'+(m.bio?'<div class="bio"><small>О себе</small>'+esc(m.bio)+'</div>':'')+musicCard(m.track,true)+'<div class="sec" style="padding:6px 4px 0">Настройки</div><div class="menu"><div class="mrow">'+ic('moon')+'<span>Тема</span><span class="seg">'+[['system','Авто'],['light','Светлая'],['dark','Тёмная']].map(([v,t])=>'<button data-act="theme" data-v="'+v+'" class="'+(S.theme===v?'on':'')+'">'+t+'</button>').join('')+'</span></div><button class="mrow" data-act="glass">'+ic('glass')+'<span>Стекло</span><i class="tg'+(S.glass?' on':'')+'"></i></button><div class="mrow">'+ic('drop')+'<span>Цвет</span></div><div class="sw">'+ACC.map((c,i)=>{const v=i?c:'';return '<button data-act="accent" data-v="'+v+'" class="'+((S.accent||'')===v?'on':'')+'" style="background:'+c+'" aria-label="Цвет"></button>'}).join('')+'</div>'+(ONLINE?'<button class="mrow" data-act="invite">'+ic('users')+'<span>Пригласить друзей</span></button>':'')+'<button class="mrow danger" data-act="logout">'+ic('logout')+'<span>Выйти</span></button></div></div>';
 }
 function tabsHtml(){
   const total=Object.values(S.unread).reduce((a,b)=>a+b,0);
@@ -726,7 +808,7 @@ function renderMain(){
   const m=$('#main');
   if(!S.open){m.innerHTML='<div class="nochat">'+logo()+'<b>Выберите чат</b><span>или начните новый из контактов</span></div>';return}
   const c=cById(S.open);
-  m.innerHTML='<section class="chat"><header class="chead"><button class="ib back" data-act="back" aria-label="Назад">'+ic('back')+'</button><button class="who" data-act="cprofile" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id,'s')+'</span><span><b>'+esc(c.name)+'</b><small id="cstat"></small></span></button></header><div class="mwrap"><div class="msgs" id="msgs"></div><button type="button" class="down" id="down" data-act="down" aria-label="Вниз" hidden>'+ic('back')+'</button></div><div class="rbar" id="rbar" hidden></div><div class="emo" id="emo" hidden>'+EMO.map(e=>'<button type="button" data-act="addemo" data-e="'+e+'">'+e+'</button>').join('')+'</div><form class="comp" id="comp"><button type="button" class="ib" data-act="emo" aria-label="Смайлики">'+ic('smile')+'</button><textarea id="inp" rows="1" placeholder="Сообщение" aria-label="Сообщение"></textarea><button class="send" id="sendb" aria-label="Отправить" disabled>'+ic('send')+'</button></form></section>';
+  m.innerHTML='<section class="chat"><header class="chead"><button class="ib back" data-act="back" aria-label="Назад">'+ic('back')+'</button><button class="who" data-act="cprofile" data-id="'+esc(c.id)+'"><span class="avw">'+avatar(c.name,c.id,'s')+'</span><span><b>'+nameHtml(c)+'</b><small id="cstat"></small></span></button></header><div class="mwrap"><div class="msgs" id="msgs"></div><button type="button" class="down" id="down" data-act="down" aria-label="Вниз" hidden>'+ic('back')+'</button></div><div class="rbar" id="rbar" hidden></div><div class="emo" id="emo" hidden>'+EMO.map(e=>'<button type="button" data-act="addemo" data-e="'+e+'">'+e+'</button>').join('')+'</div><form class="comp" id="comp"><button type="button" class="ib" data-act="emo" aria-label="Смайлики">'+ic('smile')+'</button><button type="button" class="ib secb'+(SECRET?' on':'')+'" data-act="secret" aria-label="Скрытое сообщение">🙈</button><textarea id="inp" rows="1" placeholder="Сообщение" aria-label="Сообщение"></textarea><button class="send" id="sendb" aria-label="Отправить" disabled>'+ic('send')+'</button></form></section>';
   const inp=$('#inp');inp.value=DRAFT[c.id]||'';growInp();$('#sendb').disabled=!inp.value.trim();
   renderHead();renderMsgs(true);renderReply();
   if(matchMedia('(pointer:fine)').matches)inp.focus();
@@ -757,7 +839,7 @@ function forwardSheet(id){
 function forwardTo(to,id){
   const src=findMsg(id);if(!src){closeSheet();return}
   const from=cById(S.open),name=src.fwd||(src.from==='me'?S.me.name:(from?from.name:'Без имени'));
-  const m={id:(ONLINE?'t':'')+uid(),from:'me',text:src.text,ts:Date.now(),status:ONLINE?'sending':'sent',reply:null,fwd:name,fwdId:id};
+  const m={id:(ONLINE?'t':'')+uid(),from:'me',text:src.text,ts:Date.now(),status:ONLINE?'sending':'sent',reply:null,fwd:name,fwdId:id,secret:!!src.secret};
   (S.chats[to]=S.chats[to]||[]).push(m);closeSheet();save();openChat(to);flushQueue();
 }
 function jumpTo(id){
@@ -776,9 +858,9 @@ document.addEventListener('touchcancel',()=>swEnd(false));
 function msgHtml(m,c,g){
   const out=m.from==='me';
   let q='';
-  if(m.reply){const r=(S.chats[c.id]||[]).find(x=>x.id===m.reply);if(r)q='<div class="quote" data-act="jump" data-id="'+esc(r.id)+'"><b>'+esc(r.from==='me'?'Вы':c.name)+'</b><span>'+esc(r.text)+'</span></div>'}
+  if(m.reply){const r=(S.chats[c.id]||[]).find(x=>x.id===m.reply);if(r)q='<div class="quote" data-act="jump" data-id="'+esc(r.id)+'"><b>'+esc(r.from==='me'?'Вы':c.name)+'</b><span>'+esc(preview(r))+'</span></div>'}
   const tick=out?(m.status==='read'?ic('checks'):m.status==='sending'?'<span title="Отправится, когда появится связь">🕓</span>':m.status==='failed'?'<b style="color:#ffd0d0">!</b>':ic('check')):'';
-  return '<div class="msg '+(out?'out':'in')+(g?' g':'')+'" data-mid="'+esc(m.id)+'"><div role="button" tabindex="0" class="bub'+(m.id===NEWID?' new':'')+'" data-act="msg" data-id="'+m.id+'">'+(m.fwd?'<span class="fwd">Переслано от '+esc(m.fwd)+'</span>':'')+q+'<span class="txt">'+linkify(m.text)+'</span><span class="meta">'+(m.edited?'изменено ':'')+fmtT(m.ts)+tick+'</span></div>'+(m.react?'<span class="react">'+esc(m.react)+'</span>':'')+'</div>';
+  return '<div class="msg '+(out?'out':'in')+(g?' g':'')+'" data-mid="'+esc(m.id)+'"><div role="button" tabindex="0" class="bub'+(m.id===NEWID?' new':'')+'" data-act="msg" data-id="'+m.id+'">'+(m.fwd?'<span class="fwd">Переслано от '+esc(m.fwd)+'</span>':'')+q+'<span class="txt'+(m.secret&&!SHOWN[m.id]?' sec-txt':'')+'">'+linkify(m.text)+'</span><span class="meta">'+(m.edited?'изменено ':'')+fmtT(m.ts)+tick+'</span></div>'+(m.react?'<span class="react">'+esc(m.react)+'</span>':'')+'</div>';
 }
 function renderMsgs(stick){
   const el=$('#msgs');if(!el||!S.open)return;const c=cById(S.open);
@@ -796,10 +878,10 @@ function renderReply(){
   if(!m){b.hidden=true;b.innerHTML='';return}
   const c=cById(S.open);
   b.hidden=false;
-  b.innerHTML='<div class="t"><b>'+esc(EDIT?'Редактирование':m.from==='me'?'Вы':c.name)+'</b><span>'+esc(m.text)+'</span></div><button class="ib" data-act="cancel-reply" aria-label="Отменить">'+ic('x')+'</button>';
+  b.innerHTML='<div class="t"><b>'+esc(EDIT?'Редактирование':m.from==='me'?'Вы':c.name)+'</b><span>'+esc(preview(m))+'</span></div><button class="ib" data-act="cancel-reply" aria-label="Отменить">'+ic('x')+'</button>';
 }
 const isTemp=id=>String(id)[0]==='t';
-function openChat(id){S.open=id;S.unread[id]=0;REPLY=null;EDIT=null;if(ONLINE)markRead(id);save();renderMain();renderSide()}
+function openChat(id){SECRET=false;S.open=id;S.unread[id]=0;REPLY=null;EDIT=null;if(ONLINE)markRead(id);save();renderMain();renderSide()}
 function closeChat(){S.open=null;REPLY=null;EDIT=null;save();renderMain();renderSide()}
 function pickReply(c,t){
   const l=t.toLowerCase();
@@ -827,13 +909,15 @@ function send(){
   if(EDIT){saveEdit();return}
   const id=S.open;
   if(ONLINE){
-    const om={id:'t'+uid(),from:'me',text:t,ts:Date.now(),status:'sending',reply:REPLY&&!isTemp(REPLY)?REPLY:null};
+    const om={id:'t'+uid(),from:'me',text:t,ts:Date.now(),status:'sending',reply:REPLY&&!isTemp(REPLY)?REPLY:null,secret:SECRET};
+    if(SECRET){SHOWN[om.id]=0;SECRET=false;const sb=$('.secb');if(sb)sb.classList.remove('on')}else emojiRain(t);
     (S.chats[id]=S.chats[id]||[]).push(om);NEWID=om.id;REPLY=null;DRAFT[id]='';S.drafts=DRAFT;inp.value='';growInp();
     $('#sendb').disabled=true;renderReply();save();renderMsgs(true);renderList();
     flushQueue();
     return;
   }
-  const m={id:uid(),from:'me',text:t,ts:Date.now(),status:'sent',reply:REPLY||null};
+  const m={id:uid(),from:'me',text:t,ts:Date.now(),status:'sent',reply:REPLY||null,secret:SECRET};
+  if(SECRET){SECRET=false;const sb=$('.secb');if(sb)sb.classList.remove('on')}else emojiRain(t);
   (S.chats[id]=S.chats[id]||[]).push(m);NEWID=m.id;REPLY=null;DRAFT[id]='';inp.value='';growInp();
   try{navigator.vibrate&&navigator.vibrate(8)}catch(x){}
   $('#sendb').disabled=true;renderReply();save();renderMsgs(true);renderList();
@@ -853,7 +937,7 @@ function msgSheet(id){
 function cprofileSheet(id){
   const c=cById(id);if(!c)return;
   const tr=c.track?trkInfo(c.track):null;
-  sheet('<div class="hero">'+avatar(c.name,c.id,'xl')+'<h3>'+esc(c.name)+'</h3><div class="sub">'+esc(statusText(c))+'</div></div>'+(c.bio?'<div class="bio"><small>О себе</small>'+esc(c.bio)+'</div>':'')+(c.phone?'<div class="bio"><small>Телефон</small>'+esc(c.phone)+'</div>':'')+(c.username?'<div class="bio"><small>Имя пользователя</small>@'+esc(c.username)+'</div>':'')+(tr?'<div class="bio" style="background:none;padding:0"><small style="padding:0 2px 6px">Музыка в профиле</small>'+musicCard(tr,false)+'</div>':'')+'<button class="btn ghost" data-act="pin" data-id="'+esc(c.id)+'">'+ic('pin')+(isPinned(c.id)?'Открепить чат':'Закрепить чат')+'</button><button class="btn ghost" data-act="close">Закрыть</button>');
+  sheet(heroHtml(c,c.id,statusText(c))+(ONLINE?'<button class="btn" data-act="nudge" data-id="'+esc(c.id)+'">👊 Тук-тук</button>':'')+(c.bio?'<div class="bio"><small>О себе</small>'+esc(c.bio)+'</div>':'')+(c.phone?'<div class="bio"><small>Телефон</small>'+esc(c.phone)+'</div>':'')+(c.username?'<div class="bio"><small>Имя пользователя</small>@'+esc(c.username)+'</div>':'')+(tr?'<div class="bio" style="background:none;padding:0"><small style="padding:0 2px 6px">Музыка в профиле</small>'+musicCard(tr,false)+'</div>':'')+'<button class="btn ghost" data-act="pin" data-id="'+esc(c.id)+'">'+ic('pin')+(isPinned(c.id)?'Открепить чат':'Закрепить чат')+'</button><button class="btn ghost" data-act="close">Закрыть</button>');
 }
 let NEWPHOTO;
 function showPhoto(){$('#ephv').innerHTML=avatar(S.me.name,S.me.id,'xl',NEWPHOTO)}
@@ -866,6 +950,8 @@ function pickPhoto(file){
   img.onerror=()=>{URL.revokeObjectURL(url);toast('Не удалось открыть фото')};
   img.src=url;
 }
+document.addEventListener('input',e=>{if(e.target.id==='md'&&DES){DES.mood=e.target.value;const c=$('#des .hero');if(c){let b=c.querySelector('.mood');if(!b){b=document.createElement('div');b.className='mood';c.appendChild(b)}b.textContent=DES.mood;b.hidden=!DES.mood}}});
+document.addEventListener('change',e=>{if(e.target.id==='bnf'&&e.target.files[0])pickBanner(e.target.files[0])});
 document.addEventListener('change',e=>{if(e.target.id==='eph'&&e.target.files[0])pickPhoto(e.target.files[0])});
 document.addEventListener('click',e=>{if(e.target.closest('#ephdel')){NEWPHOTO='';showPhoto()}});
 function editSheet(){
@@ -908,7 +994,13 @@ document.addEventListener('click',e=>{
     case 'logout':{if(ONLINE){api('/api/logout','POST',{}).catch(()=>{});if(ES){ES.close();ES=null}}stopAll();try{localStorage.removeItem(KEY)}catch(x){}S=null;TOK=null;TYP={};DRAFT={};REPLY=null;EDIT=null;applyTheme();renderAuth('phone');break}
     case 'newc':addSheet();break;
     case 'close':closeSheet();break;
-    case 'msg':msgSheet(id);break;
+    case 'msg':{const m=(S.chats[S.open]||[]).find(x=>x.id===id);if(m&&m.secret&&!SHOWN[id]){SHOWN[id]=1;const x=t.querySelector('.sec-txt');if(x)x.classList.remove('sec-txt')}else msgSheet(id);break}
+    case 'secret':SECRET=!SECRET;t.classList.toggle('on',SECRET);toast(SECRET?'Следующее сообщение будет скрытым':'Обычное сообщение');break;
+    case 'design':designSheet();break;
+    case 'look':if(DES){DES.look[t.dataset.k]=t.dataset.v;if(t.dataset.k==='b')DES.banner='';const sh=t.closest('.sheet'),y=sh.scrollTop;redrawDesign();sh.scrollTop=y}break;
+    case 'no-banner':if(DES){DES.banner='';redrawDesign()}break;
+    case 'save-design':saveDesign();break;
+    case 'nudge':api('/api/nudge','POST',{to:id}).then(r=>toast(r.online?'Тук-тук отправлен 👊':'Друг сейчас не в сети'),er=>toast(errText(er)));break;
     case 'react':{const m=(S.chats[S.open]||[]).find(x=>x.id===id);if(m){m.react=m.react===t.dataset.e?null:t.dataset.e;save();renderMsgs();if(ONLINE&&!isTemp(m.id))api('/api/react','POST',{id:m.id,emoji:m.react}).catch(()=>{})}closeSheet();break}
     case 'forward':forwardSheet(id);break;
     case 'fwd-to':forwardTo(id,t.dataset.msg);break;

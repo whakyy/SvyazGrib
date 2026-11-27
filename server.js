@@ -10,6 +10,8 @@ const FIXED = process.env.DEV_FIXED_CODE || ''; // только для пров�
 const SECRET = process.env.SECRET || crypto.randomBytes(16).toString('hex');
 const TG_API = process.env.TG_API || 'https://api.telegram.org', SMS_URL = process.env.SMSRU_URL || 'https://sms.ru/sms/send';
 const CODE_LEN = 6, TRACKS = ['dawn', 'rain', 'night', 'neon', 'dust'];
+// оформление профиля: баннер, рамка аватара, цвет имени, эффект
+const LOOK = { b: ['aurora', 'sunset', 'space', 'forest', 'candy', 'gold'], f: ['fire', 'gold', 'rainbow', 'neon'], n: ['fire', 'gold', 'ocean', 'candy'], x: ['spores', 'hearts', 'snow', 'shrooms'] };
 
 let db = { users: {}, sessions: {}, msgs: [], tg: {}, contacts: {} };
 try { db = Object.assign(db, JSON.parse(fs.readFileSync(DATA, 'utf8'))); } catch (e) {}
@@ -128,7 +130,7 @@ async function tgLoop() {
 
 // ---------- люди и события ----------
 const online = id => conns.has(id) && conns.get(id).size > 0;
-const pub = u => ({ id: u.id, name: u.name, username: u.username || '', bio: u.bio || '', photo: u.photo || '', track: u.track || null, online: online(u.id), seen: u.seen || 0 });
+const pub = u => ({ id: u.id, name: u.name, username: u.username || '', bio: u.bio || '', photo: u.photo || '', banner: u.banner || '', look: u.look || {}, mood: u.mood || '', track: u.track || null, online: online(u.id), seen: u.seen || 0 });
 const own = u => Object.assign(pub(u), { phone: u.phone });
 function push(id, ev) { const s = conns.get(id); if (s) for (const r of s) r.write('data: ' + JSON.stringify(ev) + '\n\n'); }
 function friendsOf(id) { const out = new Set(db.contacts[id] || []); for (const k in db.contacts) if (db.contacts[k].includes(id)) out.add(k); return [...out]; }
@@ -147,7 +149,7 @@ const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers
 function out(res, code, obj) { res.writeHead(code, Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, CORS)); res.end(JSON.stringify(obj)); }
 const fail = (res, code, error) => out(res, code, { error });
 function readBody(req) {
-  return new Promise((ok, no) => { let b = ''; req.on('data', c => { b += c; if (b.length > 20000) { no(new Error('big')); req.destroy(); } }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { no(e); } }); req.on('error', no); });
+  return new Promise((ok, no) => { let b = ''; req.on('data', c => { b += c; if (b.length > 80000) { no(new Error('big')); req.destroy(); } }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch (e) { no(e); } }); req.on('error', no); });
 }
 const ipOf = req => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
 function authed(req, url) {
@@ -185,6 +187,10 @@ const ROUTES = {
     out(res, 200, { me: own(me), users: [...ids].filter(i => db.users[i]).map(i => pub(db.users[i])), messages: msgs });
   },
   async 'PUT /api/me'(req, res, url, me, b) {
+    if ('banner' in b) {
+      const p = String(b.banner || '');
+      if (p && !(p.length <= 48000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+=*$/.test(p))) return fail(res, 400, 'bad_photo');
+    }
     if ('name' in b) { const n = clean(b.name, 40); if (n.length < 2) return fail(res, 400, 'bad_name'); me.name = n; }
     if ('username' in b) {
       const un = clean(b.username, 20).replace(/^@/, '');
@@ -198,6 +204,9 @@ const ROUTES = {
       if (p && !(p.length <= 16000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/]+=*$/.test(p))) return fail(res, 400, 'bad_photo');
       me.photo = p;
     }
+    if ('banner' in b) me.banner = String(b.banner || '');
+    if ('look' in b) { const l = {}; for (const k in LOOK) if (b.look && LOOK[k].includes(b.look[k])) l[k] = b.look[k]; me.look = l; }
+    if ('mood' in b) me.mood = clean(b.mood, 60);
     if ('track' in b) me.track = b.track && TRACKS.includes(b.track.key) ? { key: b.track.key } : null;
     save(); friendsOf(me.id).forEach(f => push(f, { type: 'profile', user: pub(me) }));
     out(res, 200, { user: own(me) });
@@ -226,6 +235,7 @@ const ROUTES = {
     // подпись «Переслано от» берём из исходного сообщения, чтобы её нельзя было подделать
     const src = b.fwd && db.msgs.find(x => x.id === b.fwd && (x.from === me.id || x.to === me.id));
     if (src) m.fwd = src.fwd || (db.users[src.from] || {}).name || 'Без имени';
+    if (b.secret || (src && src.secret)) m.secret = true;
     db.msgs.push(m); addContact(me.id, to.id); save();
     push(to.id, { type: 'message', msg: m }); push(me.id, { type: 'message', msg: m });
     tgNotify(to, me);
@@ -261,6 +271,12 @@ const ROUTES = {
   async 'POST /api/logout'(req, res, url) {
     const h = req.headers.authorization || '', t = h.startsWith('Bearer ') ? h.slice(7) : '';
     delete db.sessions[sha(t)]; save(); out(res, 200, { ok: true });
+  },
+  async 'POST /api/nudge'(req, res, url, me, b) {
+    const to = db.users[b.to];
+    if (!to || to.id === me.id || !(db.contacts[me.id] || []).includes(to.id)) return fail(res, 404, 'not_found');
+    if (!hit('ndg:' + me.id + ':' + to.id, 1, 1e4)) return fail(res, 429, 'too_fast');
+    const got = online(to.id); push(to.id, { type: 'nudge', from: me.id }); out(res, 200, { ok: true, online: got });
   },
   async 'POST /api/typing'(req, res, url, me, b) {
     if (db.users[b.to] && hit('typ:' + me.id, 20, 1e4)) push(b.to, { type: 'typing', from: me.id });
