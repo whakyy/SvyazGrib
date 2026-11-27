@@ -24,6 +24,10 @@ jobs:
           node -e "const fs=require('fs');const f='capacitor.config.json';if(!fs.existsSync(f)){console.error('нет '+f);process.exit(1)}const c=JSON.parse(fs.readFileSync(f,'utf8'));c.server={androidScheme:'https',allowNavigation:['gribsvyaz.onrender.com']};fs.writeFileSync(f,JSON.stringify(c,null,2))"
           npx cap add android
           npx cap sync android
+          # без этих разрешений в APK не работают звонки, голосовые и кружки
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#</manifest>#<uses-permission android:name="android.permission.CAMERA"/><uses-permission android:name="android.permission.RECORD_AUDIO"/><uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/><uses-feature android:name="android.hardware.camera" android:required="false"/></manifest>#' $M
+          grep -q RECORD_AUDIO $M
       - name: Build APK
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug
