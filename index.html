@@ -1281,4 +1281,127 @@ if(S&&S.me&&S.contacts&&(!ONLINE||S.tok)){
   if(ONLINE){sync().then(()=>{renderSide();renderMain()}).catch(()=>{});connect()}
 }else{S=null;renderAuth('phone')}
 document.addEventListener('visibilitychange',()=>{if(ONLINE&&S&&!document.hidden){if(S.open)markRead(S.open);renderList()}});
-</script></body></html>
+</script><style id="gx-css">
+.gx-g{display:flex;flex-direction:column;gap:10px}
+.gx-g .mrow{justify-content:space-between;text-align:left}
+.gx-g .menu{flex-shrink:0}
+.gx-g select{background:var(--surface2);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:7px 10px;font:inherit;max-width:55%}
+.gx-g input[type=range]{width:50%;accent-color:var(--accent)}
+.sheet>*{flex-shrink:0}
+html[data-fs] .bub .txt{font-size:var(--gx-fs)}
+html[data-rad] .bub,html[data-rad] .msg.g .bub{border-radius:var(--gx-rad)}
+html[data-compact] .msg:not(.g){margin-top:2px}
+html[data-compact] .bub{padding:5px 10px 4px}
+html[data-compact] .row{padding:6px 12px}
+html[data-av="square"] .av{border-radius:30%}
+html[data-av="drop"] .av{border-radius:50% 50% 50% 14%}
+html[data-noanim] *,html[data-noanim] *::before,html[data-noanim] *::after{animation:none!important;transition:none!important}
+html[data-wall] .msgs{background-image:var(--gx-wall);background-size:var(--gx-ws,auto);background-attachment:scroll}
+html[data-blur] :is(.r-last,.msgs .bub .txt){filter:blur(6px);transition:filter .15s}
+html[data-blur] :is(.row:active .r-last,.msg:active .bub .txt){filter:none}
+html[data-nolast] .r-last{visibility:hidden}
+.gx-spore{position:fixed;top:-30px;z-index:25;pointer-events:none;opacity:.55;animation:gxfall linear forwards}
+@keyframes gxfall{to{transform:translate(30px,110vh) rotate(300deg)}}
+.gx-lock{position:fixed;inset:0;z-index:200;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px}
+.gx-lock input{width:180px;text-align:center;font-size:28px;letter-spacing:.4em;padding:10px;border-radius:16px;border:1px solid var(--line);background:var(--surface)}
+.gx-big{font-size:96px;text-align:center;width:100%;padding:8px;user-select:none;touch-action:manipulation;transition:transform .08s}
+.gx-big:active{transform:scale(.88)}
+</style>
+<script>
+(()=>{
+// Настройки живут отдельно от аккаунта и не пропадают после выхода.
+const GK='gv:set';
+const DEF={fs:15,rad:22,wall:'',av:'',compact:false,noanim:false,spores:false,enter:false,rain:true,confirmDel:false,sound:'drop',sendSound:false,vib:true,quiet:false,hideNotif:false,blur:false,nolast:false,pin:'',taps:0};
+let G;try{G=Object.assign({},DEF,JSON.parse(localStorage.getItem(GK)||'{}'))}catch(e){G=Object.assign({},DEF)}
+const keep=()=>{try{localStorage.setItem(GK,JSON.stringify(G))}catch(e){}};
+const WALL={'':['Грибница',''],none:['Без рисунка','none'],dots:['Точки','radial-gradient(var(--line) 1.5px,transparent 2px)','18px 18px'],sunset:['Закат','linear-gradient(160deg,#ff8a5b33,#a64dff33)'],ocean:['Океан','linear-gradient(160deg,#2f8cff33,#19b39433)'],forest:['Лес','linear-gradient(0deg,#19b39440,transparent 70%)'],stars:['Звёзды','radial-gradient(var(--warm) 1px,transparent 1.6px),radial-gradient(var(--muted) 1px,transparent 1.6px)','47px 53px,31px 29px']};
+function apply(){
+  const r=document.documentElement,at=(n,v)=>v?r.setAttribute(n,v===true?'1':v):r.removeAttribute(n);
+  at('data-fs',G.fs!==15);at('data-rad',G.rad!==22);r.style.setProperty('--gx-fs',G.fs+'px');r.style.setProperty('--gx-rad',G.rad+'px');
+  at('data-compact',G.compact);at('data-noanim',G.noanim);at('data-av',G.av);at('data-blur',G.blur);at('data-nolast',G.nolast);
+  const w=WALL[G.wall]||WALL[''];at('data-wall',!!G.wall);r.style.setProperty('--gx-wall',w[1]||'none');r.style.setProperty('--gx-ws',w[2]||'auto');
+}
+const SND={off:['Без звука',[]],drop:['Капля',[880,440]],spore:['Спора',[523,659,784]],frog:['Лягушка',[180,140,180]],bell:['Колокольчик',[1318,1760]]};
+function beep(list){if(!list.length)return;try{const a=actx();list.forEach((f,i)=>tone(f,a.currentTime+i*.09,.16,.12,'sine'))}catch(e){}}
+const night=()=>{const h=new Date().getHours();return G.quiet&&(h>=23||h<8)};
+try{const v=navigator.vibrate&&navigator.vibrate.bind(navigator);if(v)Object.defineProperty(navigator,'vibrate',{value:p=>G.vib&&!night()?v(p):false,configurable:true})}catch(e){}
+const _rain=emojiRain;emojiRain=t=>{if(G.rain&&!G.noanim)_rain(t)};
+const _notify=notifyMsg;notifyMsg=(t,b)=>night()?Promise.resolve():_notify(G.hideNotif?'ГрибСвязь':t,G.hideNotif?'Новое сообщение':b);
+const _event=onEvent;onEvent=ev=>{const fresh=S&&ev.type==='message'&&ev.msg.from!==S.me.id&&!findMsg(ev.msg.id);_event(ev);if(fresh&&!night())beep((SND[G.sound]||SND.off)[1])};
+
+// команды в чате
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const BALL=['Да, точно','Нет','Скорее да','Скорее нет','Спроси позже','Грибы говорят: да 🍄','Туман, не видно'];
+const SHROOM=['Мухомор: яркий день, но не горячись','Лисичка: хитрость тебе поможет','Белый гриб: сегодня везёт по-крупному','Опёнок: зови друзей, вместе веселее','Подберёзовик: отдохни в тени','Шампиньон: спокойный ровный день'];
+const CMD={
+  'кубик':()=>'🎲 Выпало: '+(1+Math.floor(Math.random()*6)),
+  'монетка':()=>'🪙 '+pick(['Орёл','Решка']),
+  'шар':q=>'🔮 '+(q?q+' — ':'')+pick(BALL),
+  'гриб':()=>'🍄 Мой гриб дня. '+pick(SHROOM),
+  'выбери':q=>{const l=q.split(/,| или /).map(s=>s.trim()).filter(Boolean);return l.length>1?'🎯 Выбираю: '+pick(l):null},
+  'процент':q=>'📊 '+(q||'Шанс')+': '+Math.floor(Math.random()*101)+'%'
+};
+const _send=send;send=()=>{
+  const i=$('#inp');
+  if(i&&!EDIT){const m=/^\/(\S+)\s*([\s\S]*)$/.exec(i.value.trim());if(m){const f=CMD[m[1].toLowerCase()];if(f){const r=f(m[2].trim());if(!r){toast('Напиши варианты через запятую');return}i.value=r}}}
+  const had=i&&i.value.trim();_send();if(had&&G.sendSound)beep([660,990]);
+};
+window.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.shiftKey||e.target.id!=='inp'||e.isComposing)return;
+  e.stopPropagation();if(G.enter){e.preventDefault();send()}
+},true);
+let okDel=false;
+window.addEventListener('click',e=>{
+  const t=e.target.closest&&e.target.closest('[data-act="del"]');
+  if(t&&G.confirmDel&&!okDel&&!confirm('Удалить сообщение?')){e.stopPropagation();e.preventDefault()}
+},true);
+
+// код-замок: защищает только от случайных глаз на этом телефоне
+function lock(){
+  if(!G.pin||!S||$('.gx-lock'))return;
+  const o=document.createElement('div');o.className='gx-lock';
+  o.innerHTML='<div style="font-size:64px">🔒</div><b>Введите код</b><input type="password" inputmode="numeric" maxlength="4" autocomplete="off"><button class="btn ghost" style="width:auto">Забыл код: выйти из аккаунта</button>';
+  document.body.appendChild(o);document.activeElement&&document.activeElement.blur();
+  const i=o.querySelector('input');i.oninput=()=>{if(i.value.length===4){if(i.value===G.pin)o.remove();else{i.value='';toast('Неверный код')}}};
+  o.querySelector('button').onclick=()=>{G.pin='';keep();o.remove();const b=document.createElement('button');b.dataset.act='logout';document.body.appendChild(b);b.click();b.remove()};
+}
+let away=0;document.addEventListener('visibilitychange',()=>{if(document.hidden)away=Date.now();else if(away&&Date.now()-away>15000)lock()});
+setInterval(()=>{if(!G.spores||G.noanim||document.hidden)return;const n=document.createElement('i');n.className='gx-spore';n.textContent=pick(['🍄','✨','🍃','·']);n.style.left=Math.random()*95+'vw';const d=6+Math.random()*6;n.style.animationDuration=d+'s';document.body.appendChild(n);setTimeout(()=>n.remove(),d*1000)},900);
+
+// экран настроек
+const tg=(k,t)=>'<button class="mrow" data-gx="tg" data-k="'+k+'"><span>'+t+'</span><i class="tg'+(G[k]?' on':'')+'"></i></button>';
+const sel=(k,t,o)=>'<label class="mrow"><span>'+t+'</span><select data-gx="sel" data-k="'+k+'">'+Object.entries(o).map(([v,a])=>'<option value="'+v+'"'+(G[k]===v?' selected':'')+'>'+a[0]+'</option>').join('')+'</select></label>';
+const rng=(k,t,a,b)=>'<label class="mrow"><span>'+t+'</span><input type="range" data-gx="rng" data-k="'+k+'" min="'+a+'" max="'+b+'" value="'+G[k]+'"></label>';
+const grp=(t,h)=>'<div class="sec">'+t+'</div><div class="menu">'+h+'</div>';
+function settings(){
+  sheet('<h3>⚙️ Настройки</h3><div class="gx-g">'
+  +grp('Внешний вид',rng('fs','Размер текста',13,22)+rng('rad','Круглость сообщений',6,26)+sel('wall','Фон чата',WALL)+sel('av','Форма аватарок',{'':['Круг'],square:['Квадрат'],drop:['Капля']})+tg('compact','Компактный режим')+tg('spores','Падающие споры')+tg('noanim','Выключить анимации'))
+  +grp('Чаты',tg('enter','Enter отправляет сообщение')+tg('rain','Эмодзи-дождь')+tg('confirmDel','Спрашивать перед удалением'))
+  +grp('Звуки и уведомления',sel('sound','Звук сообщения',SND)+tg('sendSound','Звук отправки')+tg('vib','Вибрация')+tg('quiet','Тихая ночь (23:00–8:00)')+tg('hideNotif','Скрывать текст в уведомлениях'))
+  +grp('Приватность',tg('blur','Размытие: держи, чтобы прочитать')+tg('nolast','Прятать сообщения в списке чатов')+'<button class="mrow" data-gx="pin"><span>Код-замок</span><span>'+(G.pin?'Включён 🔒':'Выключен')+'</span></button>')
+  +'</div><button class="btn ghost" data-gx="reset">Сбросить настройки</button><button class="btn" data-act="close">Готово</button>');
+}
+const LV=[[0,'Спора','·'],[10,'Росток','🌱'],[50,'Грибочек','🍄'],[200,'Боровик','🍄‍🟫'],[1000,'Король леса','👑']];
+const lvl=()=>LV.filter(l=>G.taps>=l[0]).pop();
+const status=()=>{const l=lvl(),n=LV[LV.indexOf(l)+1];return l[1]+' · '+G.taps+(n?' из '+n[0]:'')};
+function farm(){sheet('<h3>🍄 Вырасти гриб</h3><button class="gx-big" data-gx="tap">'+lvl()[2]+'</button><div id="gx-lv" style="text-align:center">'+status()+'</div><div class="sec">Команды в чате: /кубик, /монетка, /шар вопрос, /гриб, /выбери чай, кофе, /процент мы пойдём гулять</div>')}
+function redraw(){const s=$('#sheets .sheet'),y=s?s.scrollTop:0;settings();const n=$('#sheets .sheet');if(n)n.scrollTop=y}
+document.addEventListener('click',e=>{
+  const t=e.target.closest('[data-gx]');if(!t)return;const a=t.dataset.gx,k=t.dataset.k;
+  if(a==='open')settings();
+  else if(a==='farm')farm();
+  else if(a==='tg'){G[k]=!G[k];keep();apply();redraw()}
+  else if(a==='pin'){if(G.pin){G.pin='';toast('Код-замок выключен')}else{const p=prompt('Придумайте код из 4 цифр');if(p===null)return;if(!/^\d{4}$/.test(p)){toast('Нужно ровно 4 цифры');return}G.pin=p;toast('Код-замок включён')}keep();redraw()}
+  else if(a==='reset'){if(!confirm('Сбросить все настройки?'))return;G=Object.assign({},DEF,{taps:G.taps});keep();apply();redraw()}
+  else if(a==='tap'){const was=lvl();G.taps++;keep();const now=lvl();t.textContent=now[2];$('#gx-lv').textContent=status();navigator.vibrate&&navigator.vibrate(8);if(now!==was){toast('Новый уровень: '+now[1]);_rain('🎉')}}
+});
+function change(e){
+  const t=e.target,a=t.dataset&&t.dataset.gx;if(a!=='sel'&&a!=='rng')return;
+  G[t.dataset.k]=a==='rng'?+t.value:t.value;keep();apply();if(e.type==='change'&&t.dataset.k==='sound')beep(SND[G.sound][1]);
+}
+document.addEventListener('input',change);document.addEventListener('change',change);
+const _prof=profHtml;profHtml=()=>_prof().replace('<div class="sec" style="padding:6px 4px 0">Настройки</div>','<button class="btn" data-gx="open">⚙️ Все настройки</button><button class="btn ghost" data-gx="farm">🍄 Вырасти гриб и команды</button><div class="sec" style="padding:6px 4px 0">Быстрые настройки</div>');
+apply();if(S){renderSide();lock()}
+})();
+</script>
+</body></html>
