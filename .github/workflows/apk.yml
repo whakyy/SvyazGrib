@@ -17,7 +17,7 @@ jobs:
           java-version: 17
       - name: Create Android app
         run: |
-          mkdir -p www && cp apk/loader.html www/index.html
+          mkdir -p www && cp index.html icon.png www/
           npm init -y
           npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/local-notifications@6
           npx cap init "ГрибСвязь" com.gribsvyaz.app --web-dir www
