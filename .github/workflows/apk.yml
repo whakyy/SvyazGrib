@@ -29,6 +29,7 @@ jobs:
           sed -i 's#</manifest>#<uses-permission android:name="android.permission.CAMERA"/><uses-permission android:name="android.permission.RECORD_AUDIO"/><uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/><uses-feature android:name="android.hardware.camera" android:required="false"/></manifest>#' $M
           grep -q RECORD_AUDIO $M
           # значок приложения из icon.png
+          command -v convert || { sudo apt-get update && sudo apt-get install -y imagemagick; }
           R=android/app/src/main/res
           for p in mdpi:48:108 hdpi:72:162 xhdpi:96:216 xxhdpi:144:324 xxxhdpi:192:432; do
             IFS=: read d s f <<< "$p"
